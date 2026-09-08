@@ -1,0 +1,2 @@
+-- Finance 1.1.0
+-- No schema changes. Version marker for the Core 1.3 integration release.

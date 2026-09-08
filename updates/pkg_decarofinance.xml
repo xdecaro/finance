@@ -5,11 +5,11 @@
     <description>Finance by xdecaro Joomla package</description>
     <element>pkg_decarofinance</element>
     <type>package</type>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <client>site</client>
     <infourl title="Finance by xdecaro">https://github.com/xdecaro/Finance</infourl>
-    <downloads><downloadurl type="full" format="zip">https://github.com/xdecaro/Finance/releases/download/v1.0.0/pkg_decarofinance_1.0.0.zip</downloadurl></downloads>
-    <sha256>9e33992a4087f049bcc9d52e163e45b5fc968ef0d7ae6ba15df52a14537c05d7</sha256>
+    <downloads><downloadurl type="full" format="zip">https://github.com/xdecaro/Finance/releases/download/v1.1.0/pkg_decarofinance_1.1.0.zip</downloadurl></downloads>
+    <sha256>0000000000000000000000000000000000000000000000000000000000000000</sha256>
     <targetplatform name="joomla" version="(4|5|6)\.[0-9]+" />
     <php_minimum>8.1.0</php_minimum>
   </update>

@@ -34,12 +34,19 @@ jobs:
           find component tests -name '*.php' -print0 | xargs -0 -n1 php -l
           php tests/core-integration-smoke.php
           python3 - <<'PY'
-          import pathlib, xml.etree.ElementTree as ET
+          import json, pathlib, xml.etree.ElementTree as ET
           v = pathlib.Path('VERSION').read_text().strip()
           for p in ['component/decarofinance.xml','package/pkg_decarofinance.xml','updates/pkg_decarofinance.xml']:
               r = ET.parse(p).getroot()
               n = r.find('version') if r.tag == 'extension' else r.find('./update/version')
               assert n is not None and n.text == v, f'{p}: version mismatch'
+          assets = json.loads(pathlib.Path('component/media/joomla.asset.json').read_text())
+          assert assets.get('version') == v, 'Web Asset version mismatch'
+          source = pathlib.Path('component/admin/src/Service/CoreIntegrationService.php').read_text()
+          assert 'xdecaro\\Core' in source, 'canonical Core namespace missing'
+          assert 'Xdecaro\\Core' not in source, 'deprecated Core namespace must not be consumed'
+          assert "MINIMUM_CORE_VERSION = '1.3.0'" in source, 'Core minimum version mismatch'
+          assert pathlib.Path(f'component/admin/sql/updates/mysql/{v}.sql').is_file(), 'schema version marker missing'
           PY
           ! grep -RniE 'DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE' component/admin/sql
       - name: Build deterministic packages
@@ -58,7 +65,7 @@ jobs:
             "dist/pkg_decarofinance_${VERSION}.zip" \
             "dist/SHA256SUMS.txt" \
             --title "Finance by xdecaro ${VERSION}" \
-            --notes "First Core-first Finance baseline. Finance retains ownership of budgets, obligations, payments, deposits and financial ledgers; Core provides only shared infrastructure."
+            --notes "Finance ${VERSION}: optional Core by xdecaro 1.3.0+ integration through the canonical xdecaro\\Core namespace. Finance domain data and standalone behavior are unchanged."
       - name: Publish package checksum
         run: |
           export PACKAGE_SHA="$(sha256sum "dist/pkg_decarofinance_${VERSION}.zip" | awk '{print $1}')"

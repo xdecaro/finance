@@ -27,6 +27,23 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq libxml2-utils
           find component package updates -name '*.xml' -print0 | xargs -0 -n1 xmllint --noout
+      - name: Validate metadata and canonical Core namespace
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, xml.etree.ElementTree as ET
+          v = pathlib.Path('VERSION').read_text().strip()
+          for p in ['component/decarofinance.xml','package/pkg_decarofinance.xml','updates/pkg_decarofinance.xml']:
+              r = ET.parse(p).getroot()
+              n = r.find('version') if r.tag == 'extension' else r.find('./update/version')
+              assert n is not None and n.text == v, f'{p}: version mismatch'
+          assets = json.loads(pathlib.Path('component/media/joomla.asset.json').read_text())
+          assert assets.get('version') == v, 'Web Asset version mismatch'
+          source = pathlib.Path('component/admin/src/Service/CoreIntegrationService.php').read_text()
+          assert 'xdecaro\\Core' in source, 'canonical Core namespace missing'
+          assert 'Xdecaro\\Core' not in source, 'deprecated Core namespace must not be consumed'
+          assert "MINIMUM_CORE_VERSION = '1.3.0'" in source, 'Core minimum version mismatch'
+          assert pathlib.Path(f'component/admin/sql/updates/mysql/{v}.sql').is_file(), 'schema version marker missing'
+          PY
       - name: Guard schema safety
         run: |
           ! grep -RniE 'DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE' component/admin/sql
