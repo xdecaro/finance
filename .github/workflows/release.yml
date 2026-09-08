@@ -1,0 +1,78 @@
+name: Release Finance package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - VERSION
+      - .github/workflows/release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Read version
+        run: echo "VERSION=$(tr -d '\r\n' < VERSION)" >> "$GITHUB_ENV"
+      - name: Refuse existing release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            echo "Release v${VERSION} already exists"
+            exit 1
+          fi
+      - name: Validate sources and Core boundary
+        run: |
+          find component tests -name '*.php' -print0 | xargs -0 -n1 php -l
+          php tests/core-integration-smoke.php
+          python3 - <<'PY'
+          import pathlib, xml.etree.ElementTree as ET
+          v = pathlib.Path('VERSION').read_text().strip()
+          for p in ['component/decarofinance.xml','package/pkg_decarofinance.xml','updates/pkg_decarofinance.xml']:
+              r = ET.parse(p).getroot()
+              n = r.find('version') if r.tag == 'extension' else r.find('./update/version')
+              assert n is not None and n.text == v, f'{p}: version mismatch'
+          PY
+          ! grep -RniE 'DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE' component/admin/sql
+      - name: Build deterministic packages
+        run: |
+          bash build/build.sh
+          cp dist/SHA256SUMS.txt /tmp/finance-sums
+          bash build/build.sh
+          diff -u /tmp/finance-sums dist/SHA256SUMS.txt
+          for file in dist/*.zip; do unzip -t "$file" >/dev/null; done
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${VERSION}" \
+            "dist/com_decarofinance_${VERSION}.zip" \
+            "dist/pkg_decarofinance_${VERSION}.zip" \
+            "dist/SHA256SUMS.txt" \
+            --title "Finance by xdecaro ${VERSION}" \
+            --notes "First Core-first Finance baseline. Finance retains ownership of budgets, obligations, payments, deposits and financial ledgers; Core provides only shared infrastructure."
+      - name: Publish package checksum
+        run: |
+          export PACKAGE_SHA="$(sha256sum "dist/pkg_decarofinance_${VERSION}.zip" | awk '{print $1}')"
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          path = Path('updates/pkg_decarofinance.xml')
+          text = path.read_text()
+          text = re.sub(r'\n\s*<sha256>[^<]*</sha256>', '', text)
+          text = text.replace('    <targetplatform', f'    <sha256>{os.environ["PACKAGE_SHA"]}</sha256>\n    <targetplatform', 1)
+          path.write_text(text)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add updates/pkg_decarofinance.xml
+          git diff --cached --quiet || git commit -m "Publish SHA-256 for Finance ${VERSION}"
+          git push
