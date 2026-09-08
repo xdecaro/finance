@@ -1,0 +1,1 @@
+-- Finance by xdecaro 1.0.0 schema is created by install.mysql.utf8mb4.sql on clean installs.

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://developer.joomla.org/schemas/json-schema/web_assets.json",
+  "name": "com_decarofinance",
+  "version": "1.0.0",
+  "assets": [
+    {"name":"com_decarofinance.admin","type":"style","uri":"com_decarofinance/css/admin.css"}
+  ]
+}

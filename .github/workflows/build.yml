@@ -9,18 +9,32 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
     steps:
       - uses: actions/checkout@v4
-      - name: Validate PHP
-        run: find component -name '*.php' -print0 | xargs -0 -n1 php -l
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Validate PHP and Core fallback
+        run: |
+          find component tests -name '*.php' -print0 | xargs -0 -n1 php -l
+          php tests/core-integration-smoke.php
       - name: Validate XML
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq libxml2-utils
           find component package updates -name '*.xml' -print0 | xargs -0 -n1 xmllint --noout
+      - name: Guard schema safety
+        run: |
+          ! grep -RniE 'DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE' component/admin/sql
+          grep -Rni '#__decarofinance_' component/admin/sql >/dev/null
       - name: Build ZIPs
         run: bash build/build.sh
       - uses: actions/upload-artifact@v4
+        if: matrix.php == '8.3'
         with:
           name: finance-${{ github.sha }}
           path: dist/
