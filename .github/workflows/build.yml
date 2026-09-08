@@ -31,8 +31,15 @@ jobs:
         run: |
           ! grep -RniE 'DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE' component/admin/sql
           grep -Rni '#__decarofinance_' component/admin/sql >/dev/null
-      - name: Build ZIPs
-        run: bash build/build.sh
+      - name: Deterministic build A
+        run: |
+          bash build/build.sh
+          cp dist/SHA256SUMS.txt /tmp/finance-sums
+      - name: Deterministic build B
+        run: |
+          bash build/build.sh
+          diff -u /tmp/finance-sums dist/SHA256SUMS.txt
+          for file in dist/*.zip; do unzip -t "$file" >/dev/null; done
       - uses: actions/upload-artifact@v4
         if: matrix.php == '8.3'
         with:
