@@ -1,0 +1,17 @@
+<?php
+defined('_JEXEC') or die;
+use Joomla\CMS\Language\Text;
+?>
+<div class="xdecaro-scope xdf-finance">
+  <section class="xdecaro-card">
+    <div class="xdecaro-card__header"><h2 class="xdecaro-card__title"><?php echo Text::_('COM_DECAROFINANCE_INFORMATION'); ?></h2></div>
+    <div class="xdecaro-card__body">
+      <dl class="xdf-details">
+        <dt><?php echo Text::_('COM_DECAROFINANCE_VERSION'); ?></dt><dd>1.0.0</dd>
+        <dt><?php echo Text::_('COM_DECAROFINANCE_CORE'); ?></dt><dd><?php echo $this->coreVersion !== '' ? htmlspecialchars($this->coreVersion, ENT_QUOTES, 'UTF-8') : Text::_('COM_DECAROFINANCE_NOT_INSTALLED'); ?></dd>
+        <dt><?php echo Text::_('COM_DECAROFINANCE_CORE_API'); ?></dt><dd><span class="xdecaro-badge <?php echo $this->coreApiAvailable ? 'xdecaro-badge--success' : 'xdecaro-badge--warning'; ?>"><?php echo $this->coreApiAvailable ? Text::_('JYES') : Text::_('JNO'); ?></span></dd>
+        <dt><?php echo Text::_('COM_DECAROFINANCE_CORE_UI'); ?></dt><dd><span class="xdecaro-badge <?php echo $this->coreUiActive ? 'xdecaro-badge--success' : 'xdecaro-badge--warning'; ?>"><?php echo $this->coreUiActive ? Text::_('JYES') : Text::_('JNO'); ?></span></dd>
+      </dl>
+    </div>
+  </section>
+</div>
