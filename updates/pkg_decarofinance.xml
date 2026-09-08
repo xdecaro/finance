@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<updates>
+  <update>
+    <name>Finance by xdecaro</name>
+    <description>Finance by xdecaro Joomla package</description>
+    <element>pkg_decarofinance</element>
+    <type>package</type>
+    <version>1.0.0</version>
+    <client>site</client>
+    <infourl title="Finance by xdecaro">https://github.com/xdecaro/Finance</infourl>
+    <downloads>
+      <downloadurl type="full" format="zip">https://github.com/xdecaro/Finance/releases/download/v1.0.0/pkg_decarofinance_1.0.0.zip</downloadurl>
+    </downloads>
+    <php_minimum>7.4.0</php_minimum>
+  </update>
+</updates>

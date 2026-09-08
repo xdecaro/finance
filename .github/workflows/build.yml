@@ -1,0 +1,26 @@
+name: Build Finance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PHP
+        run: find component -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Validate XML
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libxml2-utils
+          find component package updates -name '*.xml' -print0 | xargs -0 -n1 xmllint --noout
+      - name: Build ZIPs
+        run: bash build/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: finance-${{ github.sha }}
+          path: dist/
