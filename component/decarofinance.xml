@@ -6,7 +6,7 @@
   <copyright>Copyright (C) 2026 Luca De Caro. All rights reserved.</copyright>
   <license>GNU General Public License version 2 or later</license>
   <authorUrl>https://github.com/xdecaro/finance</authorUrl>
-  <version>1.2.1</version>
+  <version>1.3.0</version>
   <description>COM_DECAROFINANCE_XML_DESCRIPTION</description>
   <namespace path="src">Xdecaro\Component\Decarofinance</namespace>
   <administration>
