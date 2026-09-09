@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1 — 2026-09-09
+- Fixed Joomla `DatabaseInterface::insertObject()` / `updateObject()` calls that passed temporary objects where the driver requires reference-safe variables.
+- Covered payment allocations, obligation status updates, deposit account creation, budgets and budget lines.
+- Preserved all public Finance APIs, idempotency contracts, schema and data.
+- Added regression coverage for deposit ledger, payment allocation and budget writes on real Joomla runtimes.
+
 ## 1.2.0 — 2026-09-09
 - Added public transactional/idempotent Finance service.
 - Added typed debtor and payer references without hard dependencies on People/Organizations.
