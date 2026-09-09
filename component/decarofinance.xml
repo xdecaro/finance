@@ -5,14 +5,18 @@
   <creationDate>2026-09</creationDate>
   <copyright>Copyright (C) 2026 Luca De Caro. All rights reserved.</copyright>
   <license>GNU General Public License version 2 or later</license>
-  <authorUrl>https://github.com/xdecaro/Finance</authorUrl>
-  <version>1.1.0</version>
+  <authorUrl>https://github.com/xdecaro/finance</authorUrl>
+  <version>1.2.0</version>
   <description>COM_DECAROFINANCE_XML_DESCRIPTION</description>
   <namespace path="src">Xdecaro\Component\Decarofinance</namespace>
   <administration>
     <menu view="dashboard">COM_DECAROFINANCE</menu>
     <submenu>
       <menu view="dashboard">COM_DECAROFINANCE_DASHBOARD</menu>
+      <menu view="obligations">COM_DECAROFINANCE_OBLIGATIONS</menu>
+      <menu view="payments">COM_DECAROFINANCE_PAYMENTS</menu>
+      <menu view="deposits">COM_DECAROFINANCE_DEPOSITS</menu>
+      <menu view="budgets">COM_DECAROFINANCE_BUDGETS</menu>
       <menu view="information">COM_DECAROFINANCE_INFORMATION</menu>
     </submenu>
     <files folder="admin">
@@ -29,6 +33,6 @@
     <filename>joomla.asset.json</filename>
     <folder>css</folder>
   </media>
-  <install><sql><file driver="mysql" charset="utf8mb4">sql/install.mysql.utf8mb4.sql</file></sql></install>
+  <install><sql><file driver="mysql" charset="utf8">sql/install.mysql.utf8mb4.sql</file></sql></install>
   <update><schemas><schemapath type="mysql">sql/updates/mysql</schemapath></schemas></update>
 </extension>

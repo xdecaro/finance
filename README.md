@@ -1,56 +1,20 @@
 # Finance by xdecaro
 
-Finance by xdecaro is the financial management component for the xdecaro Joomla ecosystem.
+Finance is the financial layer of the xdecaro Joomla ecosystem. Current version: **1.2.0**.
 
-Current version: **1.1.0**.
+## Ownership
+Finance owns budgets, obligations, payments, payment allocations, deposit/caution accounts and append-only movements, financial transactions, due dates and audit metadata. The source product owns *why* a charge exists. Competitions, Membership, Courses, Events or other products submit normalized financial records through Finance's public service; Finance does not copy their business rules.
 
-## Technical identifiers
+## Public service
+`DecarofinanceComponent::getFinanceService()` exposes idempotent operations for obligations, payments, allocations, deposit accounts/movements, transactions and budgets. External writes should provide `external_key`. Debtor/payer references use `component + entity + id`, so People, Organizations, teams and future entities remain optional.
 
-- Joomla component: `com_decarofinance`
-- Joomla package: `pkg_decarofinance`
-- Namespace: `Xdecaro\Component\Decarofinance`
-- Repository: `xdecaro/Finance`
+## Integrations
+Core 1.4 is optional and supplies entity/relation references, UI and capability registry. Finance declares `finance.obligations`, `finance.payments`, `finance.deposits`, `finance.budgets`, `finance.query`, `finance.analytics.provider`, `finance.notifications.bridge`, `finance.tasks.bridge`.
 
-## Scope
+Notifications and Tasks are optional. The Joomla Scheduled Tasks plugin can remind a configured manager about due/overdue obligations. Analytics integration is supplied by the bundled `xdecaroanalytics` plugin; Analytics reads Finance only through the public source service and Finance ACL.
 
-Finance owns budgets, budget lines, charges, payments, deposits, deposit ledger movements and financial transactions.
-
-Other xdecaro products keep their own business rules. For example, Competitions decides that a team owes a participation fee, a deposit or a disciplinary fine; Finance manages the resulting financial obligation, payment, deposit balance and audit trail.
-
-## Competitions target integration
-
-The data model supports:
-
-- participation fees;
-- deposits/cautions;
-- yellow-card, red-card, suspension, fight/misconduct, no-show and withdrawal fines;
-- deposit deductions;
-- deposit top-ups;
-- deposit refunds;
-- external idempotency keys to prevent duplicate charges.
-
-## Compatibility
-
-Target Joomla 4, 5 and 6 where technically possible. The component uses Joomla MVC, Form API, DatabaseInterface, ACL, CSRF protection, language files and Web Asset Manager.
-
-## Core by xdecaro
-
-Core is optional for Finance. Finance `1.1.0` consumes public Core APIs only through the canonical `xdecaro\Core` namespace and only when Core `1.3.0+` is available.
-
-Core may provide shared UI assets and cross-product entity/relation references. When Core is absent, older than `1.3.0`, or incompatible, Finance remains usable with its local UI and domain logic. Finance never moves budgets, obligations, payments, deposits or ledger rules into Core.
-
-The deprecated `Xdecaro\Core` compatibility namespace is not consumed by Finance runtime code.
+## Compatibility and security
+Target Joomla 4/5/6 with PHP 8.1+. Server-side ACL and CSRF are enforced for administrator writes. SQL uses `#__`, bound queries or integer-cast identifiers, non-destructive updates, and `utf8mb4` storage. Package CI performs real clean installs on Joomla 4.4.14, 5.4.8 and 6.1.3 without requiring optional xdecaro products.
 
 ## Build
-
-Run:
-
-```bash
-bash build/build.sh
-```
-
-This generates:
-
-- `dist/com_decarofinance_1.1.0.zip`
-- `dist/pkg_decarofinance_1.1.0.zip`
-- `dist/SHA256SUMS.txt`
+`bash build/build.sh` creates component, Analytics plugin, Scheduler plugin, package and `SHA256SUMS.txt` in `dist/`.
