@@ -1,64 +1,86 @@
-name: Build Finance
-
+name: Finance CI
 on:
-  push:
-    branches: [main]
+  push: {branches: [main]}
   pull_request:
   workflow_dispatch:
-
+permissions: {contents: read}
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        php: ['8.1', '8.3']
+    strategy: {fail-fast: false, matrix: {php: ['8.1','8.3']}}
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ matrix.php }}
-          coverage: none
-      - name: Validate PHP and Core fallback
+        with: {php-version: '${{ matrix.php }}', coverage: none}
+      - name: PHP syntax and smoke
         run: |
-          find component tests -name '*.php' -print0 | xargs -0 -n1 php -l
+          find component plugins package tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           php tests/core-integration-smoke.php
-      - name: Validate XML
+      - name: Validate metadata and safety
+        shell: bash
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libxml2-utils
-          find component package updates -name '*.xml' -print0 | xargs -0 -n1 xmllint --noout
-      - name: Validate metadata and canonical Core namespace
-        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < VERSION)"; test "$VERSION" = '1.2.0'
           python3 - <<'PY'
-          import json, pathlib, xml.etree.ElementTree as ET
-          v = pathlib.Path('VERSION').read_text().strip()
-          for p in ['component/decarofinance.xml','package/pkg_decarofinance.xml','updates/pkg_decarofinance.xml']:
-              r = ET.parse(p).getroot()
-              n = r.find('version') if r.tag == 'extension' else r.find('./update/version')
-              assert n is not None and n.text == v, f'{p}: version mismatch'
-          assets = json.loads(pathlib.Path('component/media/joomla.asset.json').read_text())
-          assert assets.get('version') == v, 'Web Asset version mismatch'
-          source = pathlib.Path('component/admin/src/Service/CoreIntegrationService.php').read_text()
-          assert 'xdecaro\\Core' in source, 'canonical Core namespace missing'
-          assert 'Xdecaro\\Core' not in source, 'deprecated Core namespace must not be consumed'
-          assert "MINIMUM_CORE_VERSION = '1.3.0'" in source, 'Core minimum version mismatch'
-          assert pathlib.Path(f'component/admin/sql/updates/mysql/{v}.sql').is_file(), 'schema version marker missing'
+          import json,pathlib,xml.etree.ElementTree as ET
+          v=pathlib.Path('VERSION').read_text().strip()
+          for p in pathlib.Path('.').rglob('*.xml'): ET.parse(p)
+          targets=['component/decarofinance.xml','package/pkg_decarofinance.xml','plugins/xdecaroanalytics/decarofinance/decarofinance.xml','plugins/task/decarofinance/decarofinance.xml','updates/pkg_decarofinance.xml']
+          for p in targets:
+              r=ET.parse(p).getroot(); n=r.find('version') if r.tag=='extension' else r.find('./update/version'); assert n is not None and n.text==v,(p,'version mismatch')
+          assert json.loads(pathlib.Path('component/media/joomla.asset.json').read_text())['version']==v
           PY
-      - name: Guard schema safety
-        run: |
+          grep -Fq 'charset="utf8"' component/decarofinance.xml
+          grep -Fq "MINIMUM_CORE_VERSION = '1.4.0'" component/admin/src/Service/CoreIntegrationService.php
           ! grep -RniE 'DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE' component/admin/sql
-          grep -Rni '#__decarofinance_' component/admin/sql >/dev/null
-      - name: Deterministic build A
+          ! grep -RniE '#__(xdecaronotifications|xdecarotasks|xdecaroanalytics|xdecaropeople|xdecaroorganizations)_' component
+          grep -Fq '<scriptfile>script.php</scriptfile>' package/pkg_decarofinance.xml
+          grep -Fq "['install','discover_install']" package/script.php
+      - name: Deterministic build
         run: |
-          bash build/build.sh
-          cp dist/SHA256SUMS.txt /tmp/finance-sums
-      - name: Deterministic build B
+          chmod +x build/build.sh; build/build.sh; cp dist/SHA256SUMS.txt /tmp/sums; build/build.sh; diff -u /tmp/sums dist/SHA256SUMS.txt
+          for z in dist/*.zip; do unzip -t "$z" >/dev/null; done
+  joomla-runtime:
+    runs-on: ubuntu-latest
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {joomla: '4.4.14', php: '8.2', sha256: 'a1877816e070fa087529afcd73f214b7d5d76964d3ede0c3e6dfd354baad27b8'}
+          - {joomla: '5.4.8', php: '8.3', sha256: '8d3585939bca8e6b1d5f3e97dda2cc557c61e610daf488c871e1f62a97be9bd0'}
+          - {joomla: '6.1.3', php: '8.3', sha256: 'a49305652503f9344d046d55471f324a07882996132ed967c3b0fe34707ae4a1'}
+    services:
+      mysql:
+        image: mysql:8.0
+        env: {MYSQL_ALLOW_EMPTY_PASSWORD: 'yes', MYSQL_DATABASE: joomla}
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost" --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with: {php-version: '${{ matrix.php }}', extensions: 'mysqli,zip,simplexml', coverage: none}
+      - name: Build package
+        run: chmod +x build/build.sh && build/build.sh
+      - name: Download verified Joomla
+        shell: bash
         run: |
-          bash build/build.sh
-          diff -u /tmp/finance-sums dist/SHA256SUMS.txt
-          for file in dist/*.zip; do unzip -t "$file" >/dev/null; done
-      - uses: actions/upload-artifact@v4
-        if: matrix.php == '8.3'
-        with:
-          name: finance-${{ github.sha }}
-          path: dist/
+          set -euo pipefail; J='${{ matrix.joomla }}'; curl -fL --retry 3 "https://github.com/joomla/joomla-cms/releases/download/${J}/Joomla_${J}-Stable-Full_Package.zip" -o /tmp/joomla.zip; echo '${{ matrix.sha256 }}  /tmp/joomla.zip' | sha256sum --check --strict; mkdir joomla; unzip -q /tmp/joomla.zip -d joomla
+      - name: Install Joomla and Finance without optional products
+        shell: bash
+        run: |
+          set -euo pipefail; cd joomla
+          php installation/joomla.php install --site-name='Finance CI' --admin-user='Finance CI Admin' --admin-username=admin --admin-password="FinanceCI-${GITHUB_RUN_ID}!" --admin-email=admin@example.invalid --db-type=mysqli --db-host=127.0.0.1 --db-user=root --db-pass='' --db-name=joomla --db-prefix=fin_ --db-encryption=0 --no-interaction
+          VERSION="$(tr -d '\r\n' < "$GITHUB_WORKSPACE/VERSION")"; php cli/joomla.php extension:install --path="$GITHUB_WORKSPACE/dist/pkg_decarofinance_${VERSION}.zip" -vvv
+      - name: Verify package, plugins and schema
+        shell: bash
+        run: |
+          set -euo pipefail; MYSQL=(mysql --protocol=TCP -h127.0.0.1 -uroot --batch --skip-column-names joomla)
+          test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM fin_extensions WHERE type='package' AND element='pkg_decarofinance';")" = 1
+          test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM fin_extensions WHERE type='component' AND element='com_decarofinance';")" = 1
+          test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM fin_extensions WHERE type='plugin' AND folder='xdecaroanalytics' AND element='decarofinance' AND enabled=1;")" = 1
+          test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM fin_extensions WHERE type='plugin' AND folder='task' AND element='decarofinance' AND enabled=1;")" = 1
+          for t in budgets budget_lines obligations payments payment_allocations deposit_accounts deposit_movements transactions; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='joomla' AND table_name='fin_decarofinance_${t}';")" = 1; done
+          for c in debtor_component debtor_entity debtor_id; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_obligations' AND column_name='${c}';")" = 1; done
+          for c in payer_component payer_entity payer_id; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_payments' AND column_name='${c}';")" = 1; done

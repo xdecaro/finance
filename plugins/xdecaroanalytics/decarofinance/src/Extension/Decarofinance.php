@@ -1,0 +1,5 @@
+<?php
+namespace Xdecaro\Plugin\Xdecaroanalytics\Decarofinance\Extension;
+defined('_JEXEC') or die;
+use Joomla\CMS\Factory; use Joomla\CMS\Plugin\CMSPlugin; use Joomla\Event\SubscriberInterface; use Throwable; use xdecaro\Component\Analytics\Administrator\Event\RegisterProvidersEvent; use Xdecaro\Component\Decarofinance\Administrator\Extension\DecarofinanceComponent; use Xdecaro\Plugin\Xdecaroanalytics\Decarofinance\Provider\FinanceProvider;
+final class Decarofinance extends CMSPlugin implements SubscriberInterface { public static function getSubscribedEvents():array{return [RegisterProvidersEvent::NAME=>'onRegisterProviders'];} public function onRegisterProviders(RegisterProvidersEvent $event):void { try{$component=Factory::getApplication()->bootComponent('com_decarofinance'); if(!$component instanceof DecarofinanceComponent)return; $event->getRegistry()->register(new FinanceProvider($component->getAnalyticsSourceService()));}catch(Throwable $e){Factory::getApplication()->getLogger()->warning('Finance Analytics provider was not registered: '.$e->getMessage(),['category'=>'plg_xdecaroanalytics_decarofinance']);} } }
