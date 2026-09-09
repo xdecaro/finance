@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension type="package" method="upgrade">
-  <name>Finance by xdecaro</name><packagename>decarofinance</packagename><version>1.2.0</version><creationDate>2026-09</creationDate><author>Luca De Caro</author><authorUrl>https://github.com/xdecaro/finance</authorUrl><copyright>Copyright (C) 2026 Luca De Caro. All rights reserved.</copyright><license>GNU General Public License version 2 or later</license><description>Finance by xdecaro Joomla package</description>
+  <name>Finance by xdecaro</name><packagename>decarofinance</packagename><version>1.2.1</version><creationDate>2026-09</creationDate><author>Luca De Caro</author><authorUrl>https://github.com/xdecaro/finance</authorUrl><copyright>Copyright (C) 2026 Luca De Caro. All rights reserved.</copyright><license>GNU General Public License version 2 or later</license><description>Finance by xdecaro Joomla package</description>
   <scriptfile>script.php</scriptfile>
   <files><file type="component" id="com_decarofinance">com_decarofinance.zip</file><file type="plugin" id="decarofinance" group="xdecaroanalytics">plg_xdecaroanalytics_decarofinance.zip</file><file type="plugin" id="decarofinance" group="task">plg_task_decarofinance.zip</file></files>
   <updateservers><server type="extension" priority="1" name="Finance by xdecaro">https://raw.githubusercontent.com/xdecaro/finance/main/updates/pkg_decarofinance.xml</server></updateservers>
