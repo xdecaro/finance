@@ -16,11 +16,12 @@ jobs:
         run: |
           find component plugins package tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           php tests/core-integration-smoke.php
+          php tests/database-write-contract.php
       - name: Validate metadata and safety
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(tr -d '\r\n' < VERSION)"; test "$VERSION" = '1.2.0'
+          VERSION="$(tr -d '\r\n' < VERSION)"; test "$VERSION" = '1.2.1'
           python3 - <<'PY'
           import json,pathlib,xml.etree.ElementTree as ET
           v=pathlib.Path('VERSION').read_text().strip()
@@ -29,6 +30,7 @@ jobs:
           for p in targets:
               r=ET.parse(p).getroot(); n=r.find('version') if r.tag=='extension' else r.find('./update/version'); assert n is not None and n.text==v,(p,'version mismatch')
           assert json.loads(pathlib.Path('component/media/joomla.asset.json').read_text())['version']==v
+          assert pathlib.Path(f'component/admin/sql/updates/mysql/{v}.sql').is_file()
           PY
           grep -Fq 'charset="utf8"' component/decarofinance.xml
           grep -Fq "MINIMUM_CORE_VERSION = '1.4.0'" component/admin/src/Service/CoreIntegrationService.php
@@ -84,3 +86,10 @@ jobs:
           for t in budgets budget_lines obligations payments payment_allocations deposit_accounts deposit_movements transactions; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='joomla' AND table_name='fin_decarofinance_${t}';")" = 1; done
           for c in debtor_component debtor_entity debtor_id; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_obligations' AND column_name='${c}';")" = 1; done
           for c in payer_component payer_entity payer_id; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_payments' AND column_name='${c}';")" = 1; done
+          schema="$("${MYSQL[@]}" -e "SELECT s.version_id FROM fin_schemas s JOIN fin_extensions e ON e.extension_id=s.extension_id WHERE e.type='component' AND e.element='com_decarofinance' LIMIT 1;")"
+          test "$schema" = '1.2.1'
+      - name: Exercise reference-safe Finance writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          FINANCE_JOOMLA_ROOT="$GITHUB_WORKSPACE/joomla" php tests/runtime-write-probe.php
