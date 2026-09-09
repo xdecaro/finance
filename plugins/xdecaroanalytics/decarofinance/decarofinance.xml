@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension type="plugin" group="xdecaroanalytics" method="upgrade">
-  <name>PLG_XDECAROANALYTICS_DECAROFINANCE</name><author>Luca De Caro</author><creationDate>2026-09</creationDate><license>GNU General Public License version 2 or later</license><version>1.2.0</version>
+  <name>PLG_XDECAROANALYTICS_DECAROFINANCE</name><author>Luca De Caro</author><creationDate>2026-09</creationDate><license>GNU General Public License version 2 or later</license><version>1.2.1</version>
   <description>Finance provider for Analytics by xdecaro.</description><namespace path="src">Xdecaro\Plugin\Xdecaroanalytics\Decarofinance</namespace>
   <files><folder plugin="decarofinance">services</folder><folder>src</folder><folder>language</folder></files>
   <languages folder="language"><language tag="en-GB">en-GB/plg_xdecaroanalytics_decarofinance.ini</language><language tag="it-IT">it-IT/plg_xdecaroanalytics_decarofinance.ini</language></languages>

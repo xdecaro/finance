@@ -83,9 +83,11 @@ final class FinanceService
             $available=(float)$payment['amount']-$this->sumAllocationsForPayment($paymentId);
             $outstanding=(float)$obligation['amount']-$this->sumAllocationsForObligation($obligationId);
             if ($amount>$available+0.0001 || $amount>$outstanding+0.0001) { throw new RuntimeException('Allocation exceeds available payment or obligation balance.'); }
-            $this->db->insertObject('#__decarofinance_payment_allocations',(object)['payment_id'=>$paymentId,'obligation_id'=>$obligationId,'amount'=>$amount]);
+            $allocation=(object)['payment_id'=>$paymentId,'obligation_id'=>$obligationId,'amount'=>$amount];
+            $this->db->insertObject('#__decarofinance_payment_allocations',$allocation);
             $paid=$this->sumAllocationsForObligation($obligationId); $status=$paid+0.0001 >= (float)$obligation['amount'] ? 'paid' : ($paid>0 ? 'partial' : 'open');
-            $this->db->updateObject('#__decarofinance_obligations',(object)['id'=>$obligationId,'status'=>$status],'id');
+            $statusRow=(object)['id'=>$obligationId,'status'=>$status];
+            $this->db->updateObject('#__decarofinance_obligations',$statusRow,'id');
             $this->db->transactionCommit();
         } catch (Throwable $e) { $this->db->transactionRollback(); throw $e; }
     }
@@ -95,7 +97,8 @@ final class FinanceService
         $ownerComponent=$this->component($ownerComponent); $ownerEntity=$this->token($ownerEntity,100,'owner_entity'); $ownerId=$this->identifier($ownerId,'owner_id'); $currency=$this->currency($currency);
         $query=$this->db->getQuery(true)->select($this->db->quoteName('id'))->from($this->db->quoteName('#__decarofinance_deposit_accounts'))->where($this->db->quoteName('owner_component').' = :c')->where($this->db->quoteName('owner_entity').' = :e')->where($this->db->quoteName('owner_id').' = :i')->where($this->db->quoteName('currency').' = :cur')->bind(':c',$ownerComponent)->bind(':e',$ownerEntity)->bind(':i',$ownerId)->bind(':cur',$currency);
         $id=(int)$this->db->setQuery($query,0,1)->loadResult(); if ($id>0) { return $id; }
-        try { $this->db->insertObject('#__decarofinance_deposit_accounts',(object)['owner_component'=>$ownerComponent,'owner_entity'=>$ownerEntity,'owner_id'=>$ownerId,'currency'=>$currency,'state'=>1]); }
+        $row=(object)['owner_component'=>$ownerComponent,'owner_entity'=>$ownerEntity,'owner_id'=>$ownerId,'currency'=>$currency,'state'=>1];
+        try { $this->db->insertObject('#__decarofinance_deposit_accounts',$row); }
         catch (Throwable $e) { $id=(int)$this->db->setQuery($query,0,1)->loadResult(); if ($id>0) { return $id; } throw $e; }
         return (int)$this->db->insertid();
     }
@@ -131,14 +134,17 @@ final class FinanceService
     public function createBudget(string $title, ?string $start=null, ?string $end=null, int $actorUserId=0): int
     {
         $title=trim($title); if ($title==='' || mb_strlen($title)>255) { throw new InvalidArgumentException('Budget title is required.'); }
-        $this->db->insertObject('#__decarofinance_budgets',(object)['title'=>$title,'period_start'=>$this->nullableDate($start),'period_end'=>$this->nullableDate($end),'state'=>1,'created'=>Factory::getDate()->toSql(),'created_by'=>max(0,$actorUserId)]); return (int)$this->db->insertid();
+        $row=(object)['title'=>$title,'period_start'=>$this->nullableDate($start),'period_end'=>$this->nullableDate($end),'state'=>1,'created'=>Factory::getDate()->toSql(),'created_by'=>max(0,$actorUserId)];
+        $this->db->insertObject('#__decarofinance_budgets',$row); return (int)$this->db->insertid();
     }
 
     public function addBudgetLine(int $budgetId, string $kind, string $title, float|string $plannedAmount): int
     {
         if ($budgetId<1) { throw new InvalidArgumentException('Invalid budget.'); } $kind=strtolower(trim($kind)); if (!in_array($kind,['income','expense'],true)) { throw new InvalidArgumentException('Invalid budget line kind.'); }
         $title=trim($title); if ($title==='') { throw new InvalidArgumentException('Budget line title is required.'); }
-        $amount=$this->nonNegativeAmount($plannedAmount,'planned_amount'); $this->db->insertObject('#__decarofinance_budget_lines',(object)['budget_id'=>$budgetId,'kind'=>$kind,'title'=>mb_substr($title,0,255),'planned_amount'=>$amount]); return (int)$this->db->insertid();
+        $amount=$this->nonNegativeAmount($plannedAmount,'planned_amount');
+        $row=(object)['budget_id'=>$budgetId,'kind'=>$kind,'title'=>mb_substr($title,0,255),'planned_amount'=>$amount];
+        $this->db->insertObject('#__decarofinance_budget_lines',$row); return (int)$this->db->insertid();
     }
 
     public function getObligation(int $id): ?array { return $this->findById('#__decarofinance_obligations',$id); }

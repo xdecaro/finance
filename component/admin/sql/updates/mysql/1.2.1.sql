@@ -1,0 +1,2 @@
+-- Finance 1.2.1
+-- No database schema changes. Runtime compatibility fix only.
