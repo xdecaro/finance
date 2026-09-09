@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0 — 2026-09-09
+- Added `upsertObligation()` for external-key-backed obligation synchronization before allocation or closure.
+- Added `upsertPayment()` for external-key-backed payment synchronization before allocation.
+- Added `allocatePaymentIdempotent()` so cross-product retries can safely replay the same payment allocation while conflicting amounts remain errors.
+- Preserved existing `createObligation()`, `recordPayment()` and `allocatePayment()` behavior for current consumers.
+- Prevented changed obligation/payment data from rewriting financial history after allocations exist.
+- Added real Joomla 4/5/6 runtime coverage for update-before-allocation, replay-after-allocation and conflict rejection.
+- No schema changes.
+
 ## 1.2.1 — 2026-09-09
 - Fixed Joomla `DatabaseInterface::insertObject()` / `updateObject()` calls that passed temporary objects where the driver requires reference-safe variables.
 - Covered payment allocations, obligation status updates, deposit account creation, budgets and budget lines.

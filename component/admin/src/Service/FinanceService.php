@@ -49,6 +49,51 @@ final class FinanceService
         return $id;
     }
 
+    /**
+     * Create or update an obligation identified by external_key.
+     *
+     * An unchanged replay is always safe. Mutable fields may be updated only
+     * while the obligation is open and has no payment allocation; once money
+     * has been allocated or the obligation is closed, changed financial data is
+     * rejected instead of silently rewriting history.
+     */
+    public function upsertObligation(array $data, int $actorUserId = 0): int
+    {
+        $externalKey = $this->externalKey($data['external_key'] ?? null);
+        if ($externalKey === null) { throw new InvalidArgumentException('external_key is required for obligation upsert.'); }
+
+        $id = $this->findExternal('#__decarofinance_obligations', $externalKey);
+        if ($id < 1) { $id = $this->createObligation($data, $actorUserId); }
+
+        $current = $this->getObligation($id);
+        if ($current === null) { throw new RuntimeException('Obligation not found after upsert.'); }
+
+        $amount = $this->positiveAmount($data['amount'] ?? 0, 'amount');
+        $currency = $this->currency($data['currency'] ?? 'EUR');
+        [$sourceComponent,$sourceEntity,$sourceId] = $this->optionalReference($data, 'source');
+        [$debtorComponent,$debtorEntity,$debtorId] = $this->optionalReference($data, 'debtor');
+        $kind = $this->token((string) ($data['kind'] ?? ''), 64, 'kind');
+        $description = $this->nullableText($data['description'] ?? null, 500);
+        $dueDate = $this->nullableDate($data['due_date'] ?? null);
+
+        if ($this->obligationMatches($current, $sourceComponent, $sourceEntity, $sourceId, $debtorComponent, $debtorEntity, $debtorId, $kind, $description, $amount, $currency, $dueDate)) {
+            return $id;
+        }
+
+        if (($current['status'] ?? '') !== 'open' || $this->sumAllocationsForObligation($id) > 0.0001) {
+            throw new RuntimeException('Allocated or closed obligation cannot be changed by upsert.');
+        }
+
+        $row = (object) [
+            'id'=>$id,
+            'source_component'=>$sourceComponent,'source_entity'=>$sourceEntity,'source_id'=>$sourceId,
+            'debtor_component'=>$debtorComponent,'debtor_entity'=>$debtorEntity,'debtor_id'=>$debtorId,
+            'kind'=>$kind,'description'=>$description,'amount'=>$amount,'currency'=>$currency,'due_date'=>$dueDate,
+        ];
+        $this->db->updateObject('#__decarofinance_obligations', $row, 'id');
+        return $id;
+    }
+
     public function cancelObligation(int $id): void
     {
         $obligation=$this->getObligation($id); if ($obligation===null) { throw new RuntimeException('Obligation not found.'); }
@@ -70,7 +115,53 @@ final class FinanceService
         $id=(int)$this->db->insertid(); if ($id<1) { throw new RuntimeException('Payment was not created.'); } return $id;
     }
 
+    /** Replay-safe payment upsert. Changed payment data is rejected after allocation. */
+    public function upsertPayment(array $data, int $actorUserId = 0): int
+    {
+        $externalKey = $this->externalKey($data['external_key'] ?? null);
+        if ($externalKey === null) { throw new InvalidArgumentException('external_key is required for payment upsert.'); }
+
+        $id = $this->findExternal('#__decarofinance_payments', $externalKey);
+        if ($id < 1) { $id = $this->recordPayment($data, $actorUserId); }
+
+        $current = $this->getPayment($id);
+        if ($current === null) { throw new RuntimeException('Payment not found after upsert.'); }
+
+        $amount=$this->positiveAmount($data['amount'] ?? 0,'amount');
+        $currency=$this->currency($data['currency'] ?? 'EUR');
+        [$payerComponent,$payerEntity,$payerId]=$this->optionalReference($data,'payer');
+        $method=$this->nullableToken($data['method'] ?? null,64,'method');
+        $reference=$this->nullableText($data['reference'] ?? null,191);
+        $paidAt=$this->nullableDateTime($data['paid_at'] ?? null) ?? (string) ($current['paid_at'] ?? Factory::getDate()->toSql());
+
+        if ($this->paymentMatches($current, $payerComponent, $payerEntity, $payerId, $amount, $currency, $paidAt, $method, $reference)) {
+            return $id;
+        }
+
+        if ($this->sumAllocationsForPayment($id) > 0.0001) {
+            throw new RuntimeException('Allocated payment cannot be changed by upsert.');
+        }
+
+        $row=(object)['id'=>$id,'payer_component'=>$payerComponent,'payer_entity'=>$payerEntity,'payer_id'=>$payerId,'amount'=>$amount,'currency'=>$currency,'paid_at'=>$paidAt,'method'=>$method,'reference'=>$reference];
+        $this->db->updateObject('#__decarofinance_payments',$row,'id');
+        return $id;
+    }
+
     public function allocatePayment(int $paymentId, int $obligationId, float|string $amount): void
+    {
+        $this->allocatePaymentInternal($paymentId, $obligationId, $amount, false);
+    }
+
+    /**
+     * Allocate a payment exactly once. Replaying the same payment/obligation/
+     * amount tuple is a no-op; a conflicting amount remains an error.
+     */
+    public function allocatePaymentIdempotent(int $paymentId, int $obligationId, float|string $amount): void
+    {
+        $this->allocatePaymentInternal($paymentId, $obligationId, $amount, true);
+    }
+
+    private function allocatePaymentInternal(int $paymentId, int $obligationId, float|string $amount, bool $idempotent): void
     {
         $amount=$this->positiveAmount($amount,'amount');
         $this->db->transactionStart();
@@ -79,15 +170,20 @@ final class FinanceService
             if ($payment===null || $obligation===null) { throw new RuntimeException('Payment or obligation not found.'); }
             if ($obligation['status']==='cancelled') { throw new RuntimeException('Cannot allocate to a cancelled obligation.'); }
             if ($payment['currency']!==$obligation['currency']) { throw new RuntimeException('Payment and obligation currencies differ.'); }
-            $existing=$this->allocationAmount($paymentId,$obligationId); if ($existing>0) { throw new RuntimeException('Payment is already allocated to this obligation.'); }
+            $existing=$this->allocationAmount($paymentId,$obligationId);
+            if ($existing>0) {
+                if (!$idempotent) { throw new RuntimeException('Payment is already allocated to this obligation.'); }
+                if (abs($existing - $amount) > 0.0001) { throw new RuntimeException('Existing payment allocation has a different amount.'); }
+                $this->refreshObligationStatus($obligationId, $obligation);
+                $this->db->transactionCommit();
+                return;
+            }
             $available=(float)$payment['amount']-$this->sumAllocationsForPayment($paymentId);
             $outstanding=(float)$obligation['amount']-$this->sumAllocationsForObligation($obligationId);
             if ($amount>$available+0.0001 || $amount>$outstanding+0.0001) { throw new RuntimeException('Allocation exceeds available payment or obligation balance.'); }
             $allocation=(object)['payment_id'=>$paymentId,'obligation_id'=>$obligationId,'amount'=>$amount];
             $this->db->insertObject('#__decarofinance_payment_allocations',$allocation);
-            $paid=$this->sumAllocationsForObligation($obligationId); $status=$paid+0.0001 >= (float)$obligation['amount'] ? 'paid' : ($paid>0 ? 'partial' : 'open');
-            $statusRow=(object)['id'=>$obligationId,'status'=>$status];
-            $this->db->updateObject('#__decarofinance_obligations',$statusRow,'id');
+            $this->refreshObligationStatus($obligationId, $obligation);
             $this->db->transactionCommit();
         } catch (Throwable $e) { $this->db->transactionRollback(); throw $e; }
     }
@@ -149,6 +245,42 @@ final class FinanceService
 
     public function getObligation(int $id): ?array { return $this->findById('#__decarofinance_obligations',$id); }
     public function getPayment(int $id): ?array { return $this->findById('#__decarofinance_payments',$id); }
+
+    private function refreshObligationStatus(int $obligationId, array $obligation): void
+    {
+        $paid=$this->sumAllocationsForObligation($obligationId);
+        $status=$paid+0.0001 >= (float)$obligation['amount'] ? 'paid' : ($paid>0 ? 'partial' : 'open');
+        if (($obligation['status'] ?? '') === $status) { return; }
+        $statusRow=(object)['id'=>$obligationId,'status'=>$status];
+        $this->db->updateObject('#__decarofinance_obligations',$statusRow,'id');
+    }
+
+    private function obligationMatches(array $current, ?string $sourceComponent, ?string $sourceEntity, ?string $sourceId, ?string $debtorComponent, ?string $debtorEntity, ?string $debtorId, string $kind, ?string $description, float $amount, string $currency, ?string $dueDate): bool
+    {
+        return (string)($current['source_component'] ?? '') === (string)$sourceComponent
+            && (string)($current['source_entity'] ?? '') === (string)$sourceEntity
+            && (string)($current['source_id'] ?? '') === (string)$sourceId
+            && (string)($current['debtor_component'] ?? '') === (string)$debtorComponent
+            && (string)($current['debtor_entity'] ?? '') === (string)$debtorEntity
+            && (string)($current['debtor_id'] ?? '') === (string)$debtorId
+            && (string)($current['kind'] ?? '') === $kind
+            && (string)($current['description'] ?? '') === (string)$description
+            && abs((float)($current['amount'] ?? 0) - $amount) <= 0.0001
+            && (string)($current['currency'] ?? '') === $currency
+            && (string)($current['due_date'] ?? '') === (string)$dueDate;
+    }
+
+    private function paymentMatches(array $current, ?string $payerComponent, ?string $payerEntity, ?string $payerId, float $amount, string $currency, string $paidAt, ?string $method, ?string $reference): bool
+    {
+        return (string)($current['payer_component'] ?? '') === (string)$payerComponent
+            && (string)($current['payer_entity'] ?? '') === (string)$payerEntity
+            && (string)($current['payer_id'] ?? '') === (string)$payerId
+            && abs((float)($current['amount'] ?? 0) - $amount) <= 0.0001
+            && (string)($current['currency'] ?? '') === $currency
+            && (string)($current['paid_at'] ?? '') === $paidAt
+            && (string)($current['method'] ?? '') === (string)$method
+            && (string)($current['reference'] ?? '') === (string)$reference;
+    }
 
     private function findById(string $table,int $id): ?array { if ($id<1) return null; $v=$id; $q=$this->db->getQuery(true)->select('*')->from($this->db->quoteName($table))->where($this->db->quoteName('id').' = :id')->bind(':id',$v,ParameterType::INTEGER); $r=$this->db->setQuery($q,0,1)->loadAssoc(); return $r ?: null; }
     private function findExternal(string $table,string $key): int { $q=$this->db->getQuery(true)->select($this->db->quoteName('id'))->from($this->db->quoteName($table))->where($this->db->quoteName('external_key').' = :k')->bind(':k',$key); return (int)$this->db->setQuery($q,0,1)->loadResult(); }

@@ -1,0 +1,1 @@
+-- Finance 1.3.0 adds replay-safe public service APIs only; no schema changes.

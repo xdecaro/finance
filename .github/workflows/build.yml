@@ -21,7 +21,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(tr -d '\r\n' < VERSION)"; test "$VERSION" = '1.2.1'
+          VERSION="$(tr -d '\r\n' < VERSION)"; test "$VERSION" = '1.3.0'
           python3 - <<'PY'
           import json,pathlib,xml.etree.ElementTree as ET
           v=pathlib.Path('VERSION').read_text().strip()
@@ -34,6 +34,9 @@ jobs:
           PY
           grep -Fq 'charset="utf8"' component/decarofinance.xml
           grep -Fq "MINIMUM_CORE_VERSION = '1.4.0'" component/admin/src/Service/CoreIntegrationService.php
+          grep -Fq 'function upsertObligation' component/admin/src/Service/FinanceService.php
+          grep -Fq 'function upsertPayment' component/admin/src/Service/FinanceService.php
+          grep -Fq 'function allocatePaymentIdempotent' component/admin/src/Service/FinanceService.php
           ! grep -RniE 'DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE' component/admin/sql
           ! grep -RniE '#__(xdecaronotifications|xdecarotasks|xdecaroanalytics|xdecaropeople|xdecaroorganizations)_' component
           grep -Fq '<scriptfile>script.php</scriptfile>' package/pkg_decarofinance.xml
@@ -87,7 +90,7 @@ jobs:
           for c in debtor_component debtor_entity debtor_id; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_obligations' AND column_name='${c}';")" = 1; done
           for c in payer_component payer_entity payer_id; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_payments' AND column_name='${c}';")" = 1; done
           schema="$("${MYSQL[@]}" -e "SELECT s.version_id FROM fin_schemas s JOIN fin_extensions e ON e.extension_id=s.extension_id WHERE e.type='component' AND e.element='com_decarofinance' LIMIT 1;")"
-          test "$schema" = '1.2.1'
+          test "$schema" = '1.3.0'
       - name: Exercise reference-safe Finance writes
         shell: bash
         run: |
