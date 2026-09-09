@@ -59,6 +59,99 @@ if (!is_array($obligation) || ($obligation['status'] ?? '') !== 'partial') {
     exit(1);
 }
 
+$syncObligation = [
+    'external_key' => 'ci:sync:obligation:1',
+    'source_component' => 'com_example',
+    'source_entity' => 'due',
+    'source_id' => '22',
+    'debtor_component' => 'com_example',
+    'debtor_entity' => 'member',
+    'debtor_id' => '44',
+    'kind' => 'membership_due',
+    'description' => 'CI membership due',
+    'amount' => '80.00',
+    'currency' => 'EUR',
+    'due_date' => '2026-12-31',
+];
+$syncObligationId1 = $finance->upsertObligation($syncObligation, 1);
+$syncObligation['amount'] = '90.00';
+$syncObligationId2 = $finance->upsertObligation($syncObligation, 1);
+$syncObligationRow = $finance->getObligation($syncObligationId2);
+if ($syncObligationId1 < 1 || $syncObligationId1 !== $syncObligationId2 || !is_array($syncObligationRow) || abs((float) $syncObligationRow['amount'] - 90.0) > 0.0001) {
+    fwrite(STDERR, "Obligation upsert did not update an open obligation in place.\n");
+    exit(1);
+}
+
+$syncPayment = [
+    'external_key' => 'ci:sync:payment:1',
+    'payer_component' => 'com_example',
+    'payer_entity' => 'member',
+    'payer_id' => '44',
+    'amount' => '50.00',
+    'currency' => 'EUR',
+    'paid_at' => '2026-09-09 12:00:00',
+    'method' => 'bank_transfer',
+    'reference' => 'CI-SYNC-PAYMENT',
+];
+$syncPaymentId1 = $finance->upsertPayment($syncPayment, 1);
+$syncPayment['amount'] = '60.00';
+$syncPaymentId2 = $finance->upsertPayment($syncPayment, 1);
+$syncPaymentRow = $finance->getPayment($syncPaymentId2);
+if ($syncPaymentId1 < 1 || $syncPaymentId1 !== $syncPaymentId2 || !is_array($syncPaymentRow) || abs((float) $syncPaymentRow['amount'] - 60.0) > 0.0001) {
+    fwrite(STDERR, "Payment upsert did not update an unallocated payment in place.\n");
+    exit(1);
+}
+
+$finance->allocatePaymentIdempotent($syncPaymentId2, $syncObligationId2, '60.00');
+$finance->allocatePaymentIdempotent($syncPaymentId2, $syncObligationId2, '60.00');
+$syncObligationRow = $finance->getObligation($syncObligationId2);
+if (!is_array($syncObligationRow) || ($syncObligationRow['status'] ?? '') !== 'partial') {
+    fwrite(STDERR, "Replay-safe allocation did not preserve partial status.\n");
+    exit(1);
+}
+
+if ($finance->upsertObligation($syncObligation, 1) !== $syncObligationId2 || $finance->upsertPayment($syncPayment, 1) !== $syncPaymentId2) {
+    fwrite(STDERR, "Unchanged replay after allocation is not idempotent.\n");
+    exit(1);
+}
+
+$changedObligationRejected = false;
+try {
+    $changed = $syncObligation;
+    $changed['amount'] = '100.00';
+    $finance->upsertObligation($changed, 1);
+} catch (\RuntimeException) {
+    $changedObligationRejected = true;
+}
+if (!$changedObligationRejected) {
+    fwrite(STDERR, "Allocated obligation accepted a conflicting upsert.\n");
+    exit(1);
+}
+
+$changedPaymentRejected = false;
+try {
+    $changed = $syncPayment;
+    $changed['amount'] = '70.00';
+    $finance->upsertPayment($changed, 1);
+} catch (\RuntimeException) {
+    $changedPaymentRejected = true;
+}
+if (!$changedPaymentRejected) {
+    fwrite(STDERR, "Allocated payment accepted a conflicting upsert.\n");
+    exit(1);
+}
+
+$conflictingAllocationRejected = false;
+try {
+    $finance->allocatePaymentIdempotent($syncPaymentId2, $syncObligationId2, '50.00');
+} catch (\RuntimeException) {
+    $conflictingAllocationRejected = true;
+}
+if (!$conflictingAllocationRejected) {
+    fwrite(STDERR, "Replay-safe allocation accepted a conflicting amount.\n");
+    exit(1);
+}
+
 $account1 = $finance->getOrCreateDepositAccount('com_example', 'team', '10', 'EUR');
 $account2 = $finance->getOrCreateDepositAccount('com_example', 'team', '10', 'EUR');
 if ($account1 < 1 || $account1 !== $account2) {
@@ -84,4 +177,4 @@ if ($budgetId < 1 || $lineId < 1) {
     exit(1);
 }
 
-echo "Finance reference-safe runtime writes OK\n";
+echo "Finance replay-safe runtime writes OK\n";
