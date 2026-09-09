@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - VERSION
-      - .github/workflows/release.yml
   workflow_dispatch:
 
 permissions:
@@ -83,8 +82,11 @@ jobs:
           from pathlib import Path
           path = Path('updates/pkg_decarofinance.xml')
           text = path.read_text()
-          text = re.sub(r'\n\s*<sha256>[^<]*</sha256>', '', text)
-          text = text.replace('    <targetplatform', f'    <sha256>{os.environ["PACKAGE_SHA"]}</sha256>\n    <targetplatform', 1)
+          checksum = os.environ['PACKAGE_SHA']
+          if re.search(r'<sha256>[^<]*</sha256>', text):
+              text = re.sub(r'<sha256>[^<]*</sha256>', f'<sha256>{checksum}</sha256>', text, count=1)
+          else:
+              text = text.replace('<targetplatform', f'<sha256>{checksum}</sha256><targetplatform', 1)
           path.write_text(text)
           PY
           git config user.name "github-actions[bot]"
