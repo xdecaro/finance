@@ -37,10 +37,11 @@ jobs:
         run: |
           find component plugins package tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           php tests/core-integration-smoke.php
+          php tests/database-write-contract.php
           python3 - <<'PY'
           import json, pathlib, xml.etree.ElementTree as ET
           v = pathlib.Path('VERSION').read_text().strip()
-          for p in ['component/decarofinance.xml','package/pkg_decarofinance.xml','updates/pkg_decarofinance.xml']:
+          for p in ['component/decarofinance.xml','package/pkg_decarofinance.xml','plugins/xdecaroanalytics/decarofinance/decarofinance.xml','plugins/task/decarofinance/decarofinance.xml','updates/pkg_decarofinance.xml']:
               r = ET.parse(p).getroot()
               n = r.find('version') if r.tag == 'extension' else r.find('./update/version')
               assert n is not None and n.text == v, f'{p}: version mismatch'
@@ -70,7 +71,7 @@ jobs:
             dist/*.zip \
             dist/SHA256SUMS.txt \
             --title "Finance by xdecaro ${VERSION}" \
-            --notes "Finance ${VERSION}: transactional and idempotent financial services, typed debtor/payer references, budgets and append-only deposit ledger, optional Notifications/Tasks reminders, Analytics provider and Core 1.4 capabilities."
+            --notes "Finance ${VERSION}: PATCH release fixing reference-safe Joomla DatabaseInterface writes for payment allocations, deposit accounts and budgets while preserving the public API, idempotency contracts and schema."
 
       - name: Publish package checksum
         shell: bash
