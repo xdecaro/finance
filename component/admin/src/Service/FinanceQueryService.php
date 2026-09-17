@@ -119,8 +119,8 @@ final class FinanceQueryService
         $currency=$this->normalizeCurrency($currency);
         $summary=$this->getSummary($currency);
         $summary['net_total']=round((float)$summary['income_total']-(float)$summary['expense_total'],2);
-        $summary['approved_orders_amount']=$this->sumWhere('#__decarofinance_orders','amount',"status = 'approved' AND currency = ".$this->db->quote($currency));
-        $summary['pending_orders_amount']=$this->sumWhere('#__decarofinance_orders','amount',"status IN ('draft','pending') AND currency = ".$this->db->quote($currency));
+        $summary['approved_orders_amount']=$this->sumWhere('#__decarofinance_orders','amount',"direction = 'expense' AND status = 'approved' AND currency = ".$this->db->quote($currency));
+        $summary['pending_orders_amount']=$this->sumWhere('#__decarofinance_orders','amount',"direction = 'expense' AND status IN ('draft','pending') AND currency = ".$this->db->quote($currency));
         return $summary;
     }
 
@@ -180,13 +180,18 @@ final class FinanceQueryService
 
     private function accountBalanceTotal(string $currency): float
     {
+        $q=$this->db->getQuery(true)->select('COALESCE(SUM(opening_balance),0)')->from($this->db->quoteName('#__decarofinance_accounts'))->where('state = 1')->where('currency = '.$this->db->quote($currency));
+        $opening=(float)$this->db->setQuery($q)->loadResult();
+
         $q=$this->db->getQuery(true)
-            ->select('COALESCE(SUM(a.opening_balance),0) + COALESCE(SUM(CASE WHEN t.direction = '.$this->db->quote('income').' THEN t.amount WHEN t.direction = '.$this->db->quote('expense').' THEN -t.amount ELSE 0 END),0)')
-            ->from($this->db->quoteName('#__decarofinance_accounts','a'))
-            ->leftJoin($this->db->quoteName('#__decarofinance_transactions','t').' ON t.account_id = a.id')
+            ->select('COALESCE(SUM(CASE WHEN t.direction = '.$this->db->quote('income').' THEN t.amount WHEN t.direction = '.$this->db->quote('expense').' THEN -t.amount ELSE 0 END),0)')
+            ->from($this->db->quoteName('#__decarofinance_transactions','t'))
+            ->innerJoin($this->db->quoteName('#__decarofinance_accounts','a').' ON a.id = t.account_id')
             ->where('a.state = 1')
             ->where('a.currency = '.$this->db->quote($currency));
-        return (float)$this->db->setQuery($q)->loadResult();
+        $movements=(float)$this->db->setQuery($q)->loadResult();
+
+        return round($opening+$movements,2);
     }
 
     private function normalizeCurrency(string $currency): string
