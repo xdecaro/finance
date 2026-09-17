@@ -11,6 +11,7 @@ use Xdecaro\Component\Decarofinance\Administrator\Service\CoreIntegrationService
 
 final class HtmlView extends BaseHtmlView
 {
+    public string $version = '';
     public string $coreVersion = '';
     public bool $coreApiAvailable = false;
     public bool $coreUiActive = false;
@@ -22,6 +23,11 @@ final class HtmlView extends BaseHtmlView
             throw new \RuntimeException(Text::_('JERROR_ALERTNOAUTHOR'), 403);
         }
         ToolbarHelper::title(Text::_('COM_DECAROFINANCE_INFORMATION'), 'info-circle');
+        $manifest = JPATH_ADMINISTRATOR . '/components/com_decarofinance/decarofinance.xml';
+        if (is_file($manifest)) {
+            $xml = @simplexml_load_file($manifest);
+            $this->version = $xml !== false ? trim((string) $xml->version) : '';
+        }
         $wa = $app->getDocument()->getWebAssetManager();
         $wa->getRegistry()->addExtensionRegistryFile('com_decarofinance');
         try {
