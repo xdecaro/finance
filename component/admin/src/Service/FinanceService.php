@@ -286,6 +286,7 @@ final class FinanceService
         [$ownerComponent,$ownerEntity,$ownerId]=$this->optionalReference($data,'owner');
         [$counterpartyComponent,$counterpartyEntity,$counterpartyId]=$this->optionalReference($data,'counterparty');
         [$sourceComponent,$sourceEntity,$sourceId]=$this->optionalReference($data,'source');
+        [$evidenceComponent,$evidenceEntity,$evidenceId]=$this->optionalReference($data,'evidence');
         $required=(int)($data['required_approvals'] ?? 2); if ($required<1 || $required>5) { throw new InvalidArgumentException('required_approvals must be between 1 and 5.'); }
         $row=(object)[
             'external_key'=>$externalKey,'direction'=>$direction,'account_id'=>$accountId?:null,'budget_line_id'=>$budgetLineId?:null,
@@ -294,7 +295,7 @@ final class FinanceService
             'category'=>$this->nullableToken($data['category'] ?? null,100,'category'),'description'=>$this->nullableText($data['description'] ?? null,500),
             'amount'=>$this->positiveAmount($data['amount'] ?? 0,'amount'),'currency'=>$currency,'due_date'=>$this->nullableDate($data['due_date'] ?? null),
             'required_approvals'=>$required,'status'=>'draft','source_component'=>$sourceComponent,'source_entity'=>$sourceEntity,'source_id'=>$sourceId,
-            'approved_at'=>null,'executed_at'=>null,'transaction_id'=>null,'created'=>Factory::getDate()->toSql(),'created_by'=>max(0,$actorUserId),
+            'evidence_component'=>$evidenceComponent,'evidence_entity'=>$evidenceEntity,'evidence_id'=>$evidenceId,'approved_at'=>null,'executed_at'=>null,'transaction_id'=>null,'created'=>Factory::getDate()->toSql(),'created_by'=>max(0,$actorUserId),
         ];
         try { $this->db->insertObject('#__decarofinance_orders',$row); }
         catch (Throwable $e) { if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_orders',$externalKey); if ($existing>0) { return $existing; } } throw $e; }
@@ -306,19 +307,27 @@ final class FinanceService
     public function approveOrder(int $orderId, int $step, ?string $role, int $userId, ?string $note=null): void
     {
         if ($userId<1) { throw new InvalidArgumentException('A valid approving user is required.'); }
-        $order=$this->getOrder($orderId); if ($order===null) { throw new RuntimeException('Financial order not found.'); }
-        if (!in_array((string)$order['status'],['draft','pending'],true)) { throw new RuntimeException('Financial order cannot be approved in its current state.'); }
-        $count=$this->approvalCount($orderId); $expected=$count+1;
-        if ($step!==$expected || $step<1 || $step>(int)$order['required_approvals']) { throw new InvalidArgumentException('Approval step is not valid for this order.'); }
-        if ($step===(int)$order['required_approvals'] && (string)$order['direction']==='expense' && (int)($order['budget_line_id'] ?? 0)>0) {
-            $usage=$this->getBudgetLineAvailability((int)$order['budget_line_id'],$orderId);
-            if ((float)$order['amount']>$usage['available']+0.0001) { throw new RuntimeException('Insufficient budget coverage for this expense order.'); }
+        $this->db->transactionStart();
+        try {
+            $order=$this->getOrder($orderId); if ($order===null) { throw new RuntimeException('Financial order not found.'); }
+            if (!in_array((string)$order['status'],['draft','pending'],true)) { throw new RuntimeException('Financial order cannot be approved in its current state.'); }
+            if ($this->hasOrderApprovalByUser($orderId,$userId)) { throw new RuntimeException('The same user cannot approve more than one step of the same financial order.'); }
+            $count=$this->approvalCount($orderId); $expected=$count+1;
+            if ($step!==$expected || $step<1 || $step>(int)$order['required_approvals']) { throw new InvalidArgumentException('Approval step is not valid for this order.'); }
+            if ($step===(int)$order['required_approvals'] && (string)$order['direction']==='expense' && (int)($order['budget_line_id'] ?? 0)>0) {
+                $usage=$this->getBudgetLineAvailability((int)$order['budget_line_id'],$orderId);
+                if ((float)$order['amount']>$usage['available']+0.0001) { throw new RuntimeException('Insufficient budget coverage for this expense order.'); }
+            }
+            $approval=(object)['order_id'=>$orderId,'step'=>$step,'role'=>$this->nullableToken($role,64,'role'),'user_id'=>$userId,'decision'=>'approved','note'=>$this->nullableText($note,500),'decided_at'=>Factory::getDate()->toSql()];
+            $this->db->insertObject('#__decarofinance_order_approvals',$approval);
+            $final=$step===(int)$order['required_approvals'];
+            $row=(object)['id'=>$orderId,'status'=>$final?'approved':'pending','approved_at'=>$final?Factory::getDate()->toSql():null];
+            $this->db->updateObject('#__decarofinance_orders',$row,'id');
+            $this->db->transactionCommit();
+        } catch (Throwable $e) {
+            $this->db->transactionRollback();
+            throw $e;
         }
-        $approval=(object)['order_id'=>$orderId,'step'=>$step,'role'=>$this->nullableToken($role,64,'role'),'user_id'=>$userId,'decision'=>'approved','note'=>$this->nullableText($note,500),'decided_at'=>Factory::getDate()->toSql()];
-        $this->db->insertObject('#__decarofinance_order_approvals',$approval);
-        $final=$step===(int)$order['required_approvals'];
-        $row=(object)['id'=>$orderId,'status'=>$final?'approved':'pending','approved_at'=>$final?Factory::getDate()->toSql():null];
-        $this->db->updateObject('#__decarofinance_orders',$row,'id');
     }
 
     public function executeOrder(int $orderId, int $actorUserId=0): int
@@ -334,6 +343,7 @@ final class FinanceService
             'direction'=>$order['direction'],'category'=>$order['category'],'amount'=>$order['amount'],'currency'=>$order['currency'],
             'source_component'=>$sourceComponent,'source_entity'=>$sourceEntity,'source_id'=>$sourceId,
             'counterparty_component'=>$order['counterparty_component'],'counterparty_entity'=>$order['counterparty_entity'],'counterparty_id'=>$order['counterparty_id'],
+            'evidence_component'=>$order['evidence_component'],'evidence_entity'=>$order['evidence_entity'],'evidence_id'=>$order['evidence_id'],
             'description'=>$order['description'],
         ],$actorUserId);
         $row=(object)['id'=>$orderId,'status'=>'executed','executed_at'=>Factory::getDate()->toSql(),'transaction_id'=>$transactionId];
@@ -381,6 +391,13 @@ final class FinanceService
 
     public function getObligation(int $id): ?array { return $this->findById('#__decarofinance_obligations',$id); }
     public function getPayment(int $id): ?array { return $this->findById('#__decarofinance_payments',$id); }
+
+    private function hasOrderApprovalByUser(int $orderId, int $userId): bool
+    {
+        $oid=$orderId; $uid=$userId;
+        $q=$this->db->getQuery(true)->select('COUNT(*)')->from($this->db->quoteName('#__decarofinance_order_approvals'))->where($this->db->quoteName('order_id').' = :oid')->where($this->db->quoteName('user_id').' = :uid')->where($this->db->quoteName('decision').' = '.$this->db->quote('approved'))->bind(':oid',$oid,ParameterType::INTEGER)->bind(':uid',$uid,ParameterType::INTEGER);
+        return (int)$this->db->setQuery($q)->loadResult()>0;
+    }
 
     private function approvalCount(int $orderId): int
     {
