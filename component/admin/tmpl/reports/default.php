@@ -4,7 +4,8 @@ defined('_JEXEC') or die;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Router\Route;
 $s=$this->summary;
-$money=static fn($v)=>number_format((float)$v,2,',','.').' '.htmlspecialchars($this->currency,ENT_QUOTES,'UTF-8');
+$currency=$this->currency;
+$money=static fn($v)=>number_format((float)$v,2,',','.').' '.htmlspecialchars($currency,ENT_QUOTES,'UTF-8');
 ?>
 <div class="xdf-finance">
   <form class="xdf-report-filter" method="get" action="<?php echo Route::_('index.php'); ?>">
