@@ -105,3 +105,66 @@ jobs:
         run: |
           set -euo pipefail
           FINANCE_JOOMLA_ROOT="$GITHUB_WORKSPACE/joomla" php tests/runtime-write-probe.php
+
+
+  joomla-upgrade:
+    runs-on: ubuntu-latest
+    needs: validate
+    services:
+      mysql:
+        image: mysql:8.0
+        env: {MYSQL_ALLOW_EMPTY_PASSWORD: 'yes', MYSQL_DATABASE: joomla}
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost" --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with: {php-version: '8.3', extensions: 'mysqli,zip,simplexml', coverage: none}
+      - name: Build Finance 1.4 package
+        run: chmod +x build/build.sh && build/build.sh
+      - name: Download verified Joomla 6 and Finance 1.3
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 "https://github.com/joomla/joomla-cms/releases/download/6.1.3/Joomla_6.1.3-Stable-Full_Package.zip" -o /tmp/joomla.zip
+          echo 'a49305652503f9344d046d55471f324a07882996132ed967c3b0fe34707ae4a1  /tmp/joomla.zip' | sha256sum --check --strict
+          curl -fL --retry 3 "https://github.com/xdecaro/finance/releases/download/v1.3.0/pkg_decarofinance_1.3.0.zip" -o /tmp/finance-1.3.0.zip
+          echo '9659b3325960a65126f24a9d8906e3fa02db88198d369367e086d36265255c6c  /tmp/finance-1.3.0.zip' | sha256sum --check --strict
+          mkdir joomla
+          unzip -q /tmp/joomla.zip -d joomla
+      - name: Install Joomla and Finance 1.3
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd joomla
+          php installation/joomla.php install --site-name='Finance Upgrade CI' --admin-user='Finance CI Admin' --admin-username=admin --admin-password="FinanceUpgrade-${GITHUB_RUN_ID}!" --admin-email=admin@example.invalid --db-type=mysqli --db-host=127.0.0.1 --db-user=root --db-pass='' --db-name=joomla --db-prefix=fin_ --db-encryption=0 --no-interaction
+          php cli/joomla.php extension:install --path=/tmp/finance-1.3.0.zip -vvv
+      - name: Seed Finance 1.3 data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql --protocol=TCP -h127.0.0.1 -uroot joomla <<'SQL'
+          INSERT INTO fin_decarofinance_budgets (title,period_start,period_end,state,created,created_by)
+          VALUES ('Upgrade retained budget','2026-01-01','2026-12-31',1,'2026-09-01 10:00:00',1);
+          INSERT INTO fin_decarofinance_transactions (external_key,direction,amount,currency,occurred_at,source_component,source_entity,source_id,description)
+          VALUES ('upgrade:transaction:1','expense',42.50,'EUR','2026-09-01 11:00:00','com_example','record','42','Upgrade retained transaction');
+          INSERT INTO fin_decarofinance_obligations (external_key,source_component,source_entity,source_id,kind,description,amount,currency,due_date,status,created,created_by)
+          VALUES ('upgrade:obligation:1','com_example','record','43','fee','Upgrade retained obligation',99.00,'EUR','2026-12-31','open','2026-09-01 12:00:00',1);
+          SQL
+      - name: Upgrade to Finance 1.4 and verify preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          cd joomla
+          php cli/joomla.php extension:install --path="$GITHUB_WORKSPACE/dist/pkg_decarofinance_${VERSION}.zip" -vvv
+          MYSQL=(mysql --protocol=TCP -h127.0.0.1 -uroot --batch --skip-column-names joomla)
+          test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM fin_decarofinance_budgets WHERE title='Upgrade retained budget';")" = 1
+          test "$("${MYSQL[@]}" -e "SELECT currency FROM fin_decarofinance_budgets WHERE title='Upgrade retained budget' LIMIT 1;")" = 'EUR'
+          test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM fin_decarofinance_transactions WHERE external_key='upgrade:transaction:1' AND amount=42.50;")" = 1
+          test "$("${MYSQL[@]}" -e "SELECT created FROM fin_decarofinance_transactions WHERE external_key='upgrade:transaction:1' LIMIT 1;")" = '2026-09-01 11:00:00'
+          test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM fin_decarofinance_obligations WHERE external_key='upgrade:obligation:1' AND amount=99.00;")" = 1
+          for t in accounts orders order_approvals; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='joomla' AND table_name='fin_decarofinance_${t}';")" = 1; done
+          schema="$("${MYSQL[@]}" -e "SELECT s.version_id FROM fin_schemas s JOIN fin_extensions e ON e.extension_id=s.extension_id WHERE e.type='component' AND e.element='com_decarofinance' LIMIT 1;")"
+          test "$schema" = '1.4.0'
