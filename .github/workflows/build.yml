@@ -21,7 +21,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(tr -d '\r\n' < VERSION)"; test "$VERSION" = '1.3.0'
+          VERSION="$(tr -d '\r\n' < VERSION)"; test "$VERSION" = '1.4.0'
           python3 - <<'PY'
           import json,pathlib,xml.etree.ElementTree as ET
           v=pathlib.Path('VERSION').read_text().strip()
@@ -37,6 +37,12 @@ jobs:
           grep -Fq 'function upsertObligation' component/admin/src/Service/FinanceService.php
           grep -Fq 'function upsertPayment' component/admin/src/Service/FinanceService.php
           grep -Fq 'function allocatePaymentIdempotent' component/admin/src/Service/FinanceService.php
+          grep -Fq 'function createAccount' component/admin/src/Service/FinanceService.php
+          grep -Fq 'function recordTransaction' component/admin/src/Service/FinanceService.php
+          grep -Fq 'function createOrder' component/admin/src/Service/FinanceService.php
+          grep -Fq 'function approveOrder' component/admin/src/Service/FinanceService.php
+          grep -Fq 'function executeOrder' component/admin/src/Service/FinanceService.php
+          grep -Fq 'function getBudgetLineAvailability' component/admin/src/Service/FinanceService.php
           ! grep -RniE 'DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE' component/admin/sql
           ! grep -RniE '#__(xdecaronotifications|xdecarotasks|xdecaroanalytics|xdecaropeople|xdecaroorganizations)_' component
           grep -Fq '<scriptfile>script.php</scriptfile>' package/pkg_decarofinance.xml
@@ -86,12 +92,15 @@ jobs:
           test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM fin_extensions WHERE type='component' AND element='com_decarofinance';")" = 1
           test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM fin_extensions WHERE type='plugin' AND folder='xdecaroanalytics' AND element='decarofinance' AND enabled=1;")" = 1
           test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM fin_extensions WHERE type='plugin' AND folder='task' AND element='decarofinance' AND enabled=1;")" = 1
-          for t in budgets budget_lines obligations payments payment_allocations deposit_accounts deposit_movements transactions; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='joomla' AND table_name='fin_decarofinance_${t}';")" = 1; done
+          for t in budgets budget_lines obligations payments payment_allocations deposit_accounts deposit_movements transactions accounts orders order_approvals; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='joomla' AND table_name='fin_decarofinance_${t}';")" = 1; done
           for c in debtor_component debtor_entity debtor_id; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_obligations' AND column_name='${c}';")" = 1; done
           for c in payer_component payer_entity payer_id; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_payments' AND column_name='${c}';")" = 1; done
+          for c in owner_component owner_entity owner_id currency; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_budgets' AND column_name='${c}';")" = 1; done
+          for c in account_id budget_line_id category counterparty_component evidence_component created created_by; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_transactions' AND column_name='${c}';")" = 1; done
+          for c in required_approvals status evidence_component transaction_id; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_orders' AND column_name='${c}';")" = 1; done
           schema="$("${MYSQL[@]}" -e "SELECT s.version_id FROM fin_schemas s JOIN fin_extensions e ON e.extension_id=s.extension_id WHERE e.type='component' AND e.element='com_decarofinance' LIMIT 1;")"
-          test "$schema" = '1.3.0'
-      - name: Exercise reference-safe Finance writes
+          test "$schema" = '1.4.0'
+      - name: Exercise Finance 1.4 accounting writes
         shell: bash
         run: |
           set -euo pipefail
