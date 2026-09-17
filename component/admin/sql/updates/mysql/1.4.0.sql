@@ -27,6 +27,9 @@ ALTER TABLE `#__decarofinance_transactions`
   ADD KEY `idx_category` (`category`),
   ADD KEY `idx_counterparty` (`counterparty_component`,`counterparty_entity`,`counterparty_id`);
 
+UPDATE `#__decarofinance_transactions` SET `created` = `occurred_at` WHERE `created` IS NULL;
+ALTER TABLE `#__decarofinance_transactions` MODIFY COLUMN `created` DATETIME NOT NULL;
+
 CREATE TABLE IF NOT EXISTS `#__decarofinance_accounts` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `external_key` VARCHAR(191) NULL,
