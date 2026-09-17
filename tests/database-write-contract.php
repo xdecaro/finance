@@ -21,13 +21,17 @@ foreach ([
     "insertObject('#__decarofinance_deposit_accounts',(object)",
     "insertObject('#__decarofinance_budgets',(object)",
     "insertObject('#__decarofinance_budget_lines',(object)",
+    "insertObject('#__decarofinance_accounts',(object)",
+    "insertObject('#__decarofinance_transactions',(object)",
+    "insertObject('#__decarofinance_orders',(object)",
+    "insertObject('#__decarofinance_order_approvals',(object)",
 ] as $forbidden) {
     if (str_contains(str_replace(' ', '', $source), str_replace(' ', '', $forbidden))) {
         $fail('Reference-unsafe Joomla database write remains: ' . $forbidden);
     }
 }
 
-foreach (['$allocation=', '$statusRow=', '$row=(object)'] as $required) {
+foreach (['$allocation=', '$statusRow=', '$approval=', '$row=(object)'] as $required) {
     if (!str_contains(str_replace(' ', '', $source), str_replace(' ', '', $required))) {
         $fail('Expected named database write object is missing: ' . $required);
     }

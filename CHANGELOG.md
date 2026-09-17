@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0 — 2026-09-18
+- Added financial accounts for bank, cash, payment and other ledgers, with optional organization ownership and opening balances.
+- Added append-only financial transactions linked to accounts, budget lines, categories, source records, counterparties and optional document/evidence references.
+- Added generic collection/payment orders with configurable multi-step approval, distinct approvers, audit metadata and execution into immutable transactions.
+- Added budget ownership, currency, line codes/categories and live planned/realized/committed/available coverage calculations.
+- Added server-side budget coverage validation before final approval of expense orders linked to a budget line.
+- Added administrator sections for Accounts, Transactions, Orders and Reporting, plus dashboard KPIs and responsive/dark-safe UI refinements.
+- Added separate ACL actions for approving and executing financial orders.
+- Extended Core capabilities and Analytics datasets/metrics for accounts, transactions, orders and budget usage.
+- Added non-destructive SQL upgrades and preserved all 1.3.0 public APIs and existing data.
+- This release provides institutional accounting workflow foundations; it does not claim to replace statutory bookkeeping, tax software or legally compliant digital preservation.
+
 ## 1.3.0 — 2026-09-09
 - Added `upsertObligation()` for external-key-backed obligation synchronization before allocation or closure.
 - Added `upsertPayment()` for external-key-backed payment synchronization before allocation.

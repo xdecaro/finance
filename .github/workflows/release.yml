@@ -53,7 +53,7 @@ jobs:
           assert "MINIMUM_CORE_VERSION = '1.4.0'" in source, 'Core minimum version mismatch'
           assert pathlib.Path(f'component/admin/sql/updates/mysql/{v}.sql').is_file(), 'schema version marker missing'
           finance = pathlib.Path('component/admin/src/Service/FinanceService.php').read_text()
-          for method in ['upsertObligation', 'upsertPayment', 'allocatePaymentIdempotent']:
+          for method in ['upsertObligation', 'upsertPayment', 'allocatePaymentIdempotent', 'createAccount', 'recordTransaction', 'createOrder', 'approveOrder', 'executeOrder', 'getBudgetLineAvailability']:
               assert f'function {method}' in finance, f'{method} API missing'
           PY
           ! grep -RniE 'DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE' component/admin/sql
@@ -74,7 +74,7 @@ jobs:
             dist/*.zip \
             dist/SHA256SUMS.txt \
             --title "Finance by xdecaro ${VERSION}" \
-            --notes "Finance ${VERSION}: adds replay-safe obligation/payment upserts and idempotent payment allocation for cross-product synchronization. Existing create/record/strict-allocation APIs remain compatible; allocated or closed financial history cannot be rewritten."
+            --notes "Finance ${VERSION}: adds institutional accounting foundations with financial accounts, budget-aware append-only transactions, multi-step collection/payment orders, budget coverage checks, reporting, ACL-separated approval/execution and non-destructive upgrades. Existing 1.3 APIs remain compatible."
 
       - name: Publish package checksum
         shell: bash

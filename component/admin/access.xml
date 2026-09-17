@@ -6,5 +6,7 @@
     <action name="core.create" title="JACTION_CREATE" />
     <action name="core.edit" title="JACTION_EDIT" />
     <action name="core.delete" title="JACTION_DELETE" />
+    <action name="finance.approve" title="COM_DECAROFINANCE_ACTION_APPROVE" description="COM_DECAROFINANCE_ACTION_APPROVE_DESC" />
+    <action name="finance.execute" title="COM_DECAROFINANCE_ACTION_EXECUTE" description="COM_DECAROFINANCE_ACTION_EXECUTE_DESC" />
   </section>
 </access>

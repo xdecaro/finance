@@ -177,4 +177,163 @@ if ($budgetId < 1 || $lineId < 1) {
     exit(1);
 }
 
-echo "Finance replay-safe runtime writes OK\n";
+$accountId1 = $finance->createAccount([
+    'external_key' => 'ci:account:operations',
+    'owner_component' => 'com_example',
+    'owner_entity' => 'organization',
+    'owner_id' => 'rome',
+    'name' => 'CI Operations',
+    'account_type' => 'bank',
+    'identifier' => 'CI-IBAN',
+    'currency' => 'EUR',
+    'opening_balance' => '1000.00',
+], 1);
+$accountId2 = $finance->createAccount([
+    'external_key' => 'ci:account:operations',
+    'owner_component' => 'com_example',
+    'owner_entity' => 'organization',
+    'owner_id' => 'rome',
+    'name' => 'CI Operations',
+    'account_type' => 'bank',
+    'identifier' => 'CI-IBAN',
+    'currency' => 'EUR',
+    'opening_balance' => '1000.00',
+], 1);
+if ($accountId1 < 1 || $accountId1 !== $accountId2) {
+    fwrite(STDERR, "Financial account idempotency failed.\n");
+    exit(1);
+}
+
+$institutionalBudgetId = $finance->createBudget('CI Institutional Budget', '2026-01-01', '2026-12-31', 1, [
+    'owner_component' => 'com_example',
+    'owner_entity' => 'organization',
+    'owner_id' => 'rome',
+    'currency' => 'EUR',
+]);
+$expenseLineId = $finance->addBudgetLine($institutionalBudgetId, 'expense', 'Institutional operations', '1000.00', [
+    'code' => 'OPS',
+    'category' => 'operations',
+]);
+
+$orderId = $finance->createOrder([
+    'external_key' => 'ci:order:expense:1',
+    'direction' => 'expense',
+    'account_id' => $accountId1,
+    'budget_line_id' => $expenseLineId,
+    'owner_component' => 'com_example',
+    'owner_entity' => 'organization',
+    'owner_id' => 'rome',
+    'counterparty_component' => 'com_example',
+    'counterparty_entity' => 'supplier',
+    'counterparty_id' => 'supplier-1',
+    'category' => 'operations',
+    'description' => 'CI approved institutional expense',
+    'amount' => '250.00',
+    'currency' => 'EUR',
+    'required_approvals' => 2,
+    'source_component' => 'com_example',
+    'source_entity' => 'request',
+    'source_id' => 'expense-1',
+    'evidence_component' => 'com_example',
+    'evidence_entity' => 'document',
+    'evidence_id' => 'receipt-1',
+], 1);
+$finance->approveOrder($orderId, 1, 'president', 2, 'First approval');
+
+$sameApproverRejected = false;
+try {
+    $finance->approveOrder($orderId, 2, 'treasurer', 2, 'Invalid repeated approver');
+} catch (\RuntimeException) {
+    $sameApproverRejected = true;
+}
+if (!$sameApproverRejected) {
+    fwrite(STDERR, "The same user was allowed to approve two order steps.\n");
+    exit(1);
+}
+
+$finance->approveOrder($orderId, 2, 'treasurer', 3, 'Second approval');
+$order = $finance->getOrder($orderId);
+if (!is_array($order) || ($order['status'] ?? '') !== 'approved') {
+    fwrite(STDERR, "Multi-step order approval failed.\n");
+    exit(1);
+}
+
+$transactionId1 = $finance->executeOrder($orderId, 1);
+$transactionId2 = $finance->executeOrder($orderId, 1);
+if ($transactionId1 < 1 || $transactionId1 !== $transactionId2) {
+    fwrite(STDERR, "Order execution is not replay-safe.\n");
+    exit(1);
+}
+
+$availability = $finance->getBudgetLineAvailability($expenseLineId);
+if (abs((float) $availability['planned'] - 1000.0) > 0.0001
+    || abs((float) $availability['realized'] - 250.0) > 0.0001
+    || abs((float) $availability['committed']) > 0.0001
+    || abs((float) $availability['available'] - 750.0) > 0.0001) {
+    fwrite(STDERR, "Budget planned/realized/committed availability is incorrect.\n");
+    exit(1);
+}
+
+$query = $component->getFinanceQueryService();
+$accounts = $query->listAccounts();
+$accountRow = null;
+foreach ($accounts as $candidate) {
+    if ((int) ($candidate['id'] ?? 0) === $accountId1) {
+        $accountRow = $candidate;
+        break;
+    }
+}
+if (!is_array($accountRow) || abs((float) $accountRow['balance'] - 750.0) > 0.0001) {
+    fwrite(STDERR, "Financial account balance is incorrect after order execution.\n");
+    exit(1);
+}
+
+$transactions = $query->listTransactions();
+$transactionRow = null;
+foreach ($transactions as $candidate) {
+    if ((int) ($candidate['id'] ?? 0) === $transactionId1) {
+        $transactionRow = $candidate;
+        break;
+    }
+}
+if (!is_array($transactionRow)
+    || (string) ($transactionRow['evidence_id'] ?? '') !== 'receipt-1'
+    || (int) ($transactionRow['budget_line_id'] ?? 0) !== $expenseLineId) {
+    fwrite(STDERR, "Executed order did not preserve budget/evidence references.\n");
+    exit(1);
+}
+
+$overBudgetOrderId = $finance->createOrder([
+    'external_key' => 'ci:order:expense:over-budget',
+    'direction' => 'expense',
+    'account_id' => $accountId1,
+    'budget_line_id' => $expenseLineId,
+    'category' => 'operations',
+    'description' => 'CI over-budget expense',
+    'amount' => '800.00',
+    'currency' => 'EUR',
+    'required_approvals' => 2,
+], 1);
+$finance->approveOrder($overBudgetOrderId, 1, 'president', 4);
+
+$coverageRejected = false;
+try {
+    $finance->approveOrder($overBudgetOrderId, 2, 'treasurer', 5);
+} catch (\RuntimeException) {
+    $coverageRejected = true;
+}
+if (!$coverageRejected) {
+    fwrite(STDERR, "Final approval ignored insufficient budget coverage.\n");
+    exit(1);
+}
+$overBudgetOrder = $finance->getOrder($overBudgetOrderId);
+if (!is_array($overBudgetOrder) || ($overBudgetOrder['status'] ?? '') !== 'pending') {
+    fwrite(STDERR, "Rejected final approval did not preserve the prior order state.\n");
+    exit(1);
+}
+if (count($query->listOrderApprovals($overBudgetOrderId)) !== 1) {
+    fwrite(STDERR, "Rejected final approval was not rolled back atomically.\n");
+    exit(1);
+}
+
+echo "Finance 1.4 institutional accounting runtime writes OK\n";

@@ -1,29 +1,50 @@
 # Finance by xdecaro
 
-Finance is the financial layer of the xdecaro Joomla ecosystem. Current version: **1.3.0**.
+Finance is the financial layer of the xdecaro Joomla ecosystem. Current version: **1.4.0**.
 
 ## Ownership
-Finance owns budgets, obligations, payments, payment allocations, deposit/caution accounts and append-only movements, financial transactions, due dates and audit metadata. The source product owns *why* a charge exists. Competitions, Membership, Courses, Events or other products submit normalized financial records through Finance's public service; Finance does not copy their business rules.
+Finance owns budgets, obligations, payments, payment allocations, deposit/caution accounts and append-only movements, financial accounts, financial transactions, collection/payment orders, due dates, budget coverage and financial audit metadata.
+
+The source product owns *why* a charge, reimbursement, contribution or payment exists. Membership, Competitions, Courses, Events, Volunteers and other products submit normalized financial records through Finance's public service. Finance does not copy their business rules and does not require those products to be installed.
 
 ## Public service
-`DecarofinanceComponent::getFinanceService()` exposes operations for obligations, payments, allocations, deposit accounts/movements, transactions and budgets. External writes should provide `external_key`. Debtor/payer references use `component + entity + id`, so People, Organizations, teams and future entities remain optional.
+`DecarofinanceComponent::getFinanceService()` exposes operations for:
+- obligations, payments and allocations;
+- deposit/caution accounts and append-only movements;
+- financial accounts and append-only financial transactions;
+- budgets and budget lines;
+- collection/payment orders, multi-step approvals and execution.
 
-Finance 1.3.0 adds replay-safe synchronization primitives for cross-product integrations:
-- `upsertObligation()` creates or updates an external-key-backed obligation while it is still open and unallocated; unchanged replays remain valid after allocation, but conflicting financial changes are rejected;
-- `upsertPayment()` behaves the same way for payments and becomes immutable once an allocation exists;
-- `allocatePaymentIdempotent()` treats an identical replay as a no-op and rejects a different amount for the same payment/obligation pair.
+External writes should provide `external_key` whenever a stable source key exists. Entity links use `component + entity + id`, so People, Organizations, Documents and other products remain optional.
 
-The existing `createObligation()`, `recordPayment()` and strict `allocatePayment()` methods remain available and behaviorally compatible.
+Replay-safe synchronization remains available through `upsertObligation()`, `upsertPayment()` and `allocatePaymentIdempotent()`. Allocated or closed financial history cannot be silently rewritten.
+
+## Institutional accounting workflow
+Finance 1.4.0 adds generic accounting workflow foundations:
+1. create a financial account (bank, cash, payment or other);
+2. create budgets and categorized lines for an owning structure;
+3. register direct financial transactions, optionally linked to source records, counterparties and supporting evidence;
+4. create a collection/payment order;
+5. collect the configured number of approval steps from distinct Joomla users;
+6. for expense orders linked to a budget line, verify remaining coverage before final approval;
+7. execute the approved order exactly once into a financial transaction;
+8. report planned, realized, committed and available amounts.
+
+The workflow is generic. Role names such as President, Treasurer or Senior Councillor are not hardcoded into Finance; Organizations/Governance or installation policy may determine who receives the Joomla ACL permissions and which approval roles are used.
+
+## Reporting boundary
+The Reporting section provides operational totals, account availability, category summaries and budget coverage. Finance 1.4.0 does **not** claim to generate a legally complete statutory balance sheet, tax return, payroll accounting, VAT ledger or legally compliant digital preservation. Those requirements should be implemented only against verified accounting/legal specifications and, where appropriate, specialist external services.
 
 ## Integrations
-Core 1.4 is optional and supplies entity/relation references, UI and capability registry. Finance declares `finance.obligations`, `finance.payments`, `finance.deposits`, `finance.budgets`, `finance.query`, `finance.analytics.provider`, `finance.notifications.bridge`, `finance.tasks.bridge`.
+Core 1.4 is optional and supplies entity/relation references, shared UI and capability registry. Finance declares:
+`finance.obligations`, `finance.payments`, `finance.deposits`, `finance.budgets`, `finance.accounts`, `finance.transactions`, `finance.orders`, `finance.reporting`, `finance.query`, `finance.analytics.provider`, `finance.notifications.bridge`, `finance.tasks.bridge`.
 
-Notifications and Tasks are optional. The Joomla Scheduled Tasks plugin can remind a configured manager about due/overdue obligations. Analytics integration is supplied by the bundled `xdecaroanalytics` plugin; Analytics reads Finance only through the public source service and Finance ACL.
+Documents can be referenced as supporting evidence without becoming a required dependency. Notifications and Tasks remain optional. Analytics integration is supplied by the bundled `xdecaroanalytics` plugin.
 
 ## Compatibility and security
-Target Joomla 4/5/6 with PHP 8.1+. Server-side ACL and CSRF are enforced for administrator writes. SQL uses `#__`, bound queries or integer-cast identifiers, non-destructive updates, and `utf8mb4` storage. Package CI performs real clean installs on Joomla 4.4.14, 5.4.8 and 6.1.3 without requiring optional xdecaro products.
+Target Joomla 4, 5 and 6 where technically possible, with PHP 8.1+. Administrator writes enforce server-side ACL and CSRF. SQL uses `#__`, bound queries or integer-cast identifiers, non-destructive updates and `utf8mb4` storage. Financial transaction and deposit ledgers are append-only through the public service: corrections should be represented by explicit new movements rather than destructive rewrites.
 
-Replay-safe upserts never rewrite allocated or closed financial data. This keeps retries safe without allowing a source product to silently alter accounting history after money has been allocated.
+The package CI performs clean installation and runtime regression checks on supported Joomla branches without requiring optional xdecaro products.
 
 ## Build
-`bash build/build.sh` creates component, Analytics plugin, Scheduler plugin, package and `SHA256SUMS.txt` in `dist/`.
+`bash build/build.sh` creates the component, Analytics plugin, Scheduler plugin, package and `SHA256SUMS.txt` in `dist/`.
