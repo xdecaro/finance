@@ -280,7 +280,8 @@ final class FinanceService
         $direction=strtolower(trim((string)($data['direction'] ?? ''))); if (!in_array($direction,self::DIRECTIONS,true)) { throw new InvalidArgumentException('Invalid order direction.'); }
         $currency=$this->currency($data['currency'] ?? 'EUR');
         $accountId=max(0,(int)($data['account_id'] ?? 0));
-        if ($accountId>0) { $account=$this->getAccount($accountId); if ($account===null || (int)($account['state'] ?? 0)!==1) { throw new InvalidArgumentException('Financial account is unavailable.'); } if ((string)$account['currency']!==$currency) { throw new InvalidArgumentException('Order currency differs from account currency.'); } }
+        if ($accountId<1) { throw new InvalidArgumentException('A financial account is required for an order.'); }
+        $account=$this->getAccount($accountId); if ($account===null || (int)($account['state'] ?? 0)!==1) { throw new InvalidArgumentException('Financial account is unavailable.'); } if ((string)$account['currency']!==$currency) { throw new InvalidArgumentException('Order currency differs from account currency.'); }
         $budgetLineId=max(0,(int)($data['budget_line_id'] ?? 0));
         if ($budgetLineId>0) { $ctx=$this->budgetLineContext($budgetLineId); if ($ctx===null) { throw new InvalidArgumentException('Budget line not found.'); } if ((string)$ctx['kind']!==$direction) { throw new InvalidArgumentException('Order direction differs from budget line kind.'); } if ((string)$ctx['currency']!==$currency) { throw new InvalidArgumentException('Order currency differs from budget currency.'); } }
         [$ownerComponent,$ownerEntity,$ownerId]=$this->optionalReference($data,'owner');
