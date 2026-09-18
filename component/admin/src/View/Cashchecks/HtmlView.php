@@ -7,7 +7,6 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Toolbar\ToolbarHelper;
-use Xdecaro\Component\Decarofinance\Administrator\Service\FinanceQueryService;
 
 final class HtmlView extends BaseHtmlView
 {
@@ -21,7 +20,9 @@ final class HtmlView extends BaseHtmlView
         if (!$identity->authorise('core.manage','com_decarofinance')) { throw new \RuntimeException(Text::_('JERROR_ALERTNOAUTHOR'),403); }
         ToolbarHelper::title(Text::_('COM_DECAROFINANCE_CASH_CHECKS'),'check-circle');
         $wa=$app->getDocument()->getWebAssetManager(); $wa->getRegistry()->addExtensionRegistryFile('com_decarofinance'); $wa->useStyle('com_decarofinance.admin');
-        $query=Factory::getContainer()->get(FinanceQueryService::class);
+        $component=$app->bootComponent('com_decarofinance');
+        if (!$component instanceof \Xdecaro\Component\Decarofinance\Administrator\Extension\DecarofinanceComponent) { throw new \RuntimeException('Finance component is unavailable.'); }
+        $query=$component->getFinanceQueryService();
         $this->items=$query->listCashChecks();
         $this->cashAccounts=array_values(array_filter($query->listAccounts(),static fn(array $row):bool => ($row['account_type'] ?? '')==='cash' && (int)($row['state'] ?? 0)===1));
         $this->canReconcile=$identity->authorise('finance.reconcile','com_decarofinance');

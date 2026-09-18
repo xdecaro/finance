@@ -7,7 +7,6 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Toolbar\ToolbarHelper;
-use Xdecaro\Component\Decarofinance\Administrator\Service\CoreIntegrationService;
 
 final class HtmlView extends BaseHtmlView
 {
@@ -31,7 +30,11 @@ final class HtmlView extends BaseHtmlView
         $wa = $app->getDocument()->getWebAssetManager();
         $wa->getRegistry()->addExtensionRegistryFile('com_decarofinance');
         try {
-            $core = Factory::getContainer()->get(CoreIntegrationService::class);
+            $component = $app->bootComponent('com_decarofinance');
+            if (!$component instanceof \Xdecaro\Component\Decarofinance\Administrator\Extension\DecarofinanceComponent) {
+                throw new \RuntimeException('Finance component is unavailable.');
+            }
+            $core = $component->getCoreIntegrationService();
             $this->coreVersion = $core->getVersion();
             $this->coreApiAvailable = $core->isReferenceApiAvailable();
             $this->coreUiActive = $core->enableUi($wa);
