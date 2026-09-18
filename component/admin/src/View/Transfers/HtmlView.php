@@ -18,7 +18,7 @@ final class HtmlView extends BaseHtmlView
         $app=Factory::getApplication();
         if (!$app->getIdentity()->authorise('core.manage','com_decarofinance')) { throw new \RuntimeException(Text::_('JERROR_ALERTNOAUTHOR'),403); }
         ToolbarHelper::title(Text::_('COM_DECAROFINANCE_TRANSFERS'),'shuffle');
-        $wa=$app->getDocument()->getWebAssetManager(); $wa->getRegistry()->addExtensionRegistryFile('com_decarofinance'); $wa->useStyle('com_decarofinance.admin');
+        \Xdecaro\Component\Decarofinance\Administrator\Helper\UiHelper::loadAssets();
         $component=$app->bootComponent('com_decarofinance');
         if (!$component instanceof \Xdecaro\Component\Decarofinance\Administrator\Extension\DecarofinanceComponent) { throw new \RuntimeException('Finance component is unavailable.'); }
         $query=$component->getFinanceQueryService();

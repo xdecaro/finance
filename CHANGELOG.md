@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.2 — 2026-09-18
+- Fixed missing Finance administrator styling on Joomla by loading the component stylesheet through an explicit runtime Web Asset Manager registration.
+- Added a centralized `UiHelper::loadAssets()` used by every Finance administrator view, avoiding reliance on extension asset-registry discovery for the critical admin stylesheet.
+- Kept `joomla.asset.json` as packaged asset metadata while making the visible administrator UI resilient if registry discovery does not activate the stylesheet.
+- Added regression checks that every administrator view loads the centralized asset helper and that the installed CSS/helper files are present after a real Joomla installation.
+- Added a real Joomla 1.5.1 → 1.5.2 upgrade test; no database schema or public API changes.
+
 ## 1.5.1 — 2026-09-18
 - Fixed the administrator fatal error `Resource '...FinanceQueryService' has not been registered with the container`.
 - Administrator views now resolve Finance query/Core services from the booted `com_decarofinance` component, which owns the extension service container, instead of requesting component-local services from Joomla's global container.
