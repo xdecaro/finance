@@ -8,5 +8,6 @@
     <action name="core.delete" title="JACTION_DELETE" />
     <action name="finance.approve" title="COM_DECAROFINANCE_ACTION_APPROVE" description="COM_DECAROFINANCE_ACTION_APPROVE_DESC" />
     <action name="finance.execute" title="COM_DECAROFINANCE_ACTION_EXECUTE" description="COM_DECAROFINANCE_ACTION_EXECUTE_DESC" />
+    <action name="finance.reconcile" title="COM_DECAROFINANCE_ACTION_RECONCILE" description="COM_DECAROFINANCE_ACTION_RECONCILE_DESC" />
   </section>
 </access>
