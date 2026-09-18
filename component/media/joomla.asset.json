@@ -3,6 +3,6 @@
   "name": "com_decarofinance",
   "version": "1.5.3",
   "assets": [
-    {"name":"com_decarofinance.admin","type":"style","uri":"com_decarofinance/css/admin.css","version":"1.5.2"}
+    {"name":"com_decarofinance.admin","type":"style","uri":"com_decarofinance/css/admin.css","version":"1.5.3"}
   ]
 }
