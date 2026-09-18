@@ -15,6 +15,7 @@ $statusLabel=static function(string $status):string {
 };
 ?>
 <div class="xdf-finance">
+  <div class="alert alert-info"><?php echo Text::_('COM_DECAROFINANCE_STATEMENT_DISCLAIMER'); ?></div>
   <?php if($this->canCreate): ?>
   <section class="xdecaro-card xdf-form-card">
     <div class="xdecaro-card__header"><h2 class="xdecaro-card__title"><?php echo Text::_('COM_DECAROFINANCE_NEW_STATEMENT'); ?></h2></div>
