@@ -8,6 +8,7 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Controller\BaseController;
 use Joomla\CMS\Router\Route;
 use Throwable;
+use Xdecaro\Component\Decarofinance\Administrator\Extension\DecarofinanceComponent;
 use Xdecaro\Component\Decarofinance\Administrator\Service\FinanceService;
 
 final class FinanceController extends BaseController
@@ -233,7 +234,14 @@ final class FinanceController extends BaseController
         } catch (Throwable $e) { $this->message($e->getMessage(),'error','statements'); }
     }
 
-    private function service(): FinanceService { return Factory::getContainer()->get(FinanceService::class); }
+    private function service(): FinanceService
+    {
+        $component=Factory::getApplication()->bootComponent('com_decarofinance');
+        if (!$component instanceof DecarofinanceComponent) {
+            throw new \RuntimeException('Finance component is unavailable.');
+        }
+        return $component->getFinanceService();
+    }
     private function userId(): int { return (int)Factory::getApplication()->getIdentity()->id; }
     private function authorise(string $action): void { if (!Factory::getApplication()->getIdentity()->authorise($action,'com_decarofinance')) throw new \RuntimeException(Text::_('JERROR_ALERTNOAUTHOR'),403); }
     private function message(string $message,string $type,string $view): void { Factory::getApplication()->enqueueMessage($message,$type); $this->setRedirect(Route::_('index.php?option=com_decarofinance&view='.$view,false)); }
