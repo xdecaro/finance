@@ -6,7 +6,6 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Toolbar\ToolbarHelper;
-use Xdecaro\Component\Decarofinance\Administrator\Service\FinanceQueryService;
 
 final class HtmlView extends BaseHtmlView
 {
@@ -22,7 +21,9 @@ final class HtmlView extends BaseHtmlView
         ToolbarHelper::title(Text::_('COM_DECAROFINANCE_REPORTS'),'chart');
         $wa=$app->getDocument()->getWebAssetManager(); $wa->getRegistry()->addExtensionRegistryFile('com_decarofinance'); $wa->useStyle('com_decarofinance.admin');
         $currency=strtoupper(trim($app->input->getCmd('currency','EUR'))); $this->currency=preg_match('/^[A-Z]{3}$/',$currency)?$currency:'EUR';
-        $query=Factory::getContainer()->get(FinanceQueryService::class);
+        $component=$app->bootComponent('com_decarofinance');
+        if (!$component instanceof \Xdecaro\Component\Decarofinance\Administrator\Extension\DecarofinanceComponent) { throw new \RuntimeException('Finance component is unavailable.'); }
+        $query=$component->getFinanceQueryService();
         $this->summary=$query->getReportSummary($this->currency);
         $this->categories=$query->reportByCategory($this->currency);
         $this->budgetUsage=$query->reportBudgetUsage($this->currency);
