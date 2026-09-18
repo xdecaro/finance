@@ -38,6 +38,7 @@ jobs:
           find component plugins package tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           php tests/core-integration-smoke.php
           php tests/database-write-contract.php
+          php tests/component-service-resolution.php
           python3 - <<'PY'
           import json, pathlib, xml.etree.ElementTree as ET
           v = pathlib.Path('VERSION').read_text().strip()
@@ -74,7 +75,7 @@ jobs:
             dist/*.zip \
             dist/SHA256SUMS.txt \
             --title "Finance by xdecaro ${VERSION}" \
-            --notes "Finance ${VERSION}: adds internal account transfers, physical cash checks, statement snapshots with finalisation/approval separation, account codes, reconciliation KPIs and non-destructive upgrades. Existing 1.4 APIs remain compatible."
+            --notes "Finance ${VERSION}: fixes Joomla administrator service resolution by obtaining Finance services from the booted component container. Dashboard, lists, reports, information and write actions no longer request component-local services from the global DI container. No schema or public API changes."
 
       - name: Publish package checksum
         shell: bash
