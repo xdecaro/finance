@@ -25,6 +25,10 @@ foreach ([
     "insertObject('#__decarofinance_transactions',(object)",
     "insertObject('#__decarofinance_orders',(object)",
     "insertObject('#__decarofinance_order_approvals',(object)",
+    "insertObject('#__decarofinance_transfers',(object)",
+    "insertObject('#__decarofinance_cash_checks',(object)",
+    "insertObject('#__decarofinance_statements',(object)",
+    "insertObject('#__decarofinance_statement_lines',(object)",
 ] as $forbidden) {
     if (str_contains(str_replace(' ', '', $source), str_replace(' ', '', $forbidden))) {
         $fail('Reference-unsafe Joomla database write remains: ' . $forbidden);
