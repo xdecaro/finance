@@ -182,4 +182,4 @@ jobs:
           test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM fin_decarofinance_obligations WHERE external_key='upgrade:obligation:1' AND amount=99.00;")" = 1
           for t in accounts orders order_approvals transfers cash_checks statements statement_lines; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='joomla' AND table_name='fin_decarofinance_${t}';")" = 1; done
           schema="$("${MYSQL[@]}" -e "SELECT s.version_id FROM fin_schemas s JOIN fin_extensions e ON e.extension_id=s.extension_id WHERE e.type='component' AND e.element='com_decarofinance' LIMIT 1;")"
-          test "$schema" = '1.5.0'
+          test "$schema" = '1.5.1'
