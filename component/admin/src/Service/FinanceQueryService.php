@@ -24,9 +24,11 @@ final class FinanceQueryService
             'budgets'=>$this->count('#__decarofinance_budgets','state = 1 AND currency = '.$this->db->quote($currency)),
             'accounts'=>$this->count('#__decarofinance_accounts','state = 1 AND currency = '.$this->db->quote($currency)),
             'account_balance'=>$this->accountBalanceTotal($currency),
-            'income_total'=>$this->sumWhere('#__decarofinance_transactions','amount',"direction = 'income' AND currency = ".$this->db->quote($currency)),
-            'expense_total'=>$this->sumWhere('#__decarofinance_transactions','amount',"direction = 'expense' AND currency = ".$this->db->quote($currency)),
+            'income_total'=>$this->sumWhere('#__decarofinance_transactions','amount',"direction = 'income' AND (category IS NULL OR category <> 'internal_transfer') AND currency = ".$this->db->quote($currency)),
+            'expense_total'=>$this->sumWhere('#__decarofinance_transactions','amount',"direction = 'expense' AND (category IS NULL OR category <> 'internal_transfer') AND currency = ".$this->db->quote($currency)),
             'pending_orders'=>$this->count('#__decarofinance_orders',"status IN ('draft','pending','approved') AND currency = ".$this->db->quote($currency)),
+            'cash_check_variances'=>$this->latestCashVarianceCount($currency),
+            'draft_statements'=>$this->count('#__decarofinance_statements',"status = 'draft' AND currency = ".$this->db->quote($currency)),
         ];
     }
 
@@ -106,6 +108,51 @@ final class FinanceQueryService
         return $this->db->setQuery($q,0,max(1,min(1000,$limit)))->loadAssocList();
     }
 
+    public function listTransfers(int $limit=200): array
+    {
+        $q=$this->db->getQuery(true)
+            ->select(['tr.*','fa.name AS from_account_name','ta.name AS to_account_name'])
+            ->from($this->db->quoteName('#__decarofinance_transfers','tr'))
+            ->leftJoin($this->db->quoteName('#__decarofinance_accounts','fa').' ON fa.id = tr.from_account_id')
+            ->leftJoin($this->db->quoteName('#__decarofinance_accounts','ta').' ON ta.id = tr.to_account_id')
+            ->order('tr.occurred_at DESC, tr.id DESC');
+        return $this->db->setQuery($q,0,max(1,min(1000,$limit)))->loadAssocList();
+    }
+
+    public function listCashChecks(int $limit=200): array
+    {
+        $q=$this->db->getQuery(true)
+            ->select(['c.*','a.name AS account_name','a.currency'])
+            ->from($this->db->quoteName('#__decarofinance_cash_checks','c'))
+            ->innerJoin($this->db->quoteName('#__decarofinance_accounts','a').' ON a.id = c.account_id')
+            ->order('c.checked_at DESC, c.id DESC');
+        return $this->db->setQuery($q,0,max(1,min(1000,$limit)))->loadAssocList();
+    }
+
+    public function listStatements(int $limit=200): array
+    {
+        $q=$this->db->getQuery(true)
+            ->select('s.*, COUNT(l.id) AS line_count, COALESCE(SUM(CASE WHEN l.line_type = '.$this->db->quote('amount').' THEN l.amount ELSE 0 END),0) AS amount_total')
+            ->from($this->db->quoteName('#__decarofinance_statements','s'))
+            ->leftJoin($this->db->quoteName('#__decarofinance_statement_lines','l').' ON l.statement_id = s.id')
+            ->group('s.id')
+            ->order('s.period_end IS NULL, s.period_end DESC, s.id DESC');
+        return $this->db->setQuery($q,0,max(1,min(1000,$limit)))->loadAssocList();
+    }
+
+    public function listStatementLines(int $statementId): array
+    {
+        if ($statementId<1) { return []; }
+        $id=$statementId;
+        $q=$this->db->getQuery(true)
+            ->select('*')
+            ->from($this->db->quoteName('#__decarofinance_statement_lines'))
+            ->where($this->db->quoteName('statement_id').' = :id')
+            ->order('sort_order ASC, id ASC')
+            ->bind(':id',$id,ParameterType::INTEGER);
+        return $this->db->setQuery($q)->loadAssocList();
+    }
+
     public function listOrderApprovals(int $orderId): array
     {
         if ($orderId<1) { return []; }
@@ -121,6 +168,7 @@ final class FinanceQueryService
         $summary['net_total']=round((float)$summary['income_total']-(float)$summary['expense_total'],2);
         $summary['approved_orders_amount']=$this->sumWhere('#__decarofinance_orders','amount',"direction = 'expense' AND status = 'approved' AND currency = ".$this->db->quote($currency));
         $summary['pending_orders_amount']=$this->sumWhere('#__decarofinance_orders','amount',"direction = 'expense' AND status IN ('draft','pending') AND currency = ".$this->db->quote($currency));
+        $summary['cash_variance_total']=$this->cashVarianceTotal($currency);
         return $summary;
     }
 
@@ -175,6 +223,29 @@ final class FinanceQueryService
     private function outstandingTotal(string $currency): float
     {
         $q=$this->db->getQuery(true)->select('COALESCE(SUM(o.amount - COALESCE(a.paid,0)),0)')->from($this->db->quoteName('#__decarofinance_obligations','o'))->leftJoin('(SELECT obligation_id, SUM(amount) AS paid FROM '.$this->db->quoteName('#__decarofinance_payment_allocations').' GROUP BY obligation_id) a ON a.obligation_id=o.id')->where("o.status IN ('open','partial')")->where('o.currency = '.$this->db->quote($currency));
+        return (float)$this->db->setQuery($q)->loadResult();
+    }
+
+    private function latestCashVarianceCount(string $currency): int
+    {
+        $q=$this->db->getQuery(true)
+            ->select('COUNT(*)')
+            ->from($this->db->quoteName('#__decarofinance_cash_checks','c'))
+            ->innerJoin($this->db->quoteName('#__decarofinance_accounts','a').' ON a.id = c.account_id')
+            ->where('c.id IN (SELECT MAX(id) FROM '.$this->db->quoteName('#__decarofinance_cash_checks').' GROUP BY account_id)')
+            ->where('ABS(c.difference) >= 0.005')
+            ->where('a.currency = '.$this->db->quote($currency));
+        return (int)$this->db->setQuery($q)->loadResult();
+    }
+
+    private function cashVarianceTotal(string $currency): float
+    {
+        $q=$this->db->getQuery(true)
+            ->select('COALESCE(SUM(c.difference),0)')
+            ->from($this->db->quoteName('#__decarofinance_cash_checks','c'))
+            ->innerJoin($this->db->quoteName('#__decarofinance_accounts','a').' ON a.id = c.account_id')
+            ->where('c.id IN (SELECT MAX(id) FROM '.$this->db->quoteName('#__decarofinance_cash_checks').' GROUP BY account_id)')
+            ->where('a.currency = '.$this->db->quote($currency));
         return (float)$this->db->setQuery($q)->loadResult();
     }
 

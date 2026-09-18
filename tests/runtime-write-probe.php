@@ -336,4 +336,226 @@ if (count($query->listOrderApprovals($overBudgetOrderId)) !== 1) {
     exit(1);
 }
 
-echo "Finance 1.4 institutional accounting runtime writes OK\n";
+$cashAccountId = $finance->createAccount([
+    'external_key' => 'ci:account:cash',
+    'code' => 'CASH',
+    'owner_component' => 'com_example',
+    'owner_entity' => 'organization',
+    'owner_id' => 'rome',
+    'name' => 'CI Cash',
+    'account_type' => 'cash',
+    'currency' => 'EUR',
+    'opening_balance' => '100.00',
+], 1);
+if ($cashAccountId < 1) {
+    fwrite(STDERR, "Cash account creation failed.\n");
+    exit(1);
+}
+
+$transferId1 = $finance->transferBetweenAccounts([
+    'external_key' => 'ci:transfer:1',
+    'from_account_id' => $accountId1,
+    'to_account_id' => $cashAccountId,
+    'amount' => '100.00',
+    'currency' => 'EUR',
+    'description' => 'CI internal transfer',
+], 1);
+$transferId2 = $finance->transferBetweenAccounts([
+    'external_key' => 'ci:transfer:1',
+    'from_account_id' => $accountId1,
+    'to_account_id' => $cashAccountId,
+    'amount' => '100.00',
+    'currency' => 'EUR',
+    'description' => 'CI internal transfer',
+], 1);
+if ($transferId1 < 1 || $transferId1 !== $transferId2) {
+    fwrite(STDERR, "Transfer idempotency failed.\n");
+    exit(1);
+}
+$conflictingTransferRejected = false;
+try {
+    $finance->transferBetweenAccounts([
+        'external_key' => 'ci:transfer:1',
+        'from_account_id' => $accountId1,
+        'to_account_id' => $cashAccountId,
+        'amount' => '101.00',
+        'currency' => 'EUR',
+    ], 1);
+} catch (\RuntimeException) {
+    $conflictingTransferRejected = true;
+}
+if (!$conflictingTransferRejected) {
+    fwrite(STDERR, "Conflicting transfer replay was accepted.\n");
+    exit(1);
+}
+if (abs($finance->getAccountBalance($accountId1) - 650.0) > 0.0001
+    || abs($finance->getAccountBalance($cashAccountId) - 200.0) > 0.0001) {
+    fwrite(STDERR, "Transfer did not preserve paired account balances.\n");
+    exit(1);
+}
+
+$reservedTransferCategoryRejected = false;
+try {
+    $finance->recordTransaction([
+        'external_key' => 'ci:fake-transfer:1',
+        'account_id' => $accountId1,
+        'direction' => 'expense',
+        'category' => 'internal_transfer',
+        'amount' => '1.00',
+        'currency' => 'EUR',
+    ], 1);
+} catch (\InvalidArgumentException) {
+    $reservedTransferCategoryRejected = true;
+}
+if (!$reservedTransferCategoryRejected) {
+    fwrite(STDERR, "Reserved internal-transfer category accepted a direct transaction.\n");
+    exit(1);
+}
+
+$summaryAfterTransfer = $query->getSummary('EUR');
+if (abs((float) $summaryAfterTransfer['expense_total'] - 250.0) > 0.0001
+    || abs((float) $summaryAfterTransfer['income_total']) > 0.0001) {
+    fwrite(STDERR, "Internal transfer incorrectly inflated operating income/expense totals.\n");
+    exit(1);
+}
+
+$cashCheckId = $finance->recordCashCheck([
+    'external_key' => 'ci:cash-check:1',
+    'account_id' => $cashAccountId,
+    'actual_balance' => '195.00',
+    'note' => 'CI physical cash count',
+    'evidence_component' => 'com_example',
+    'evidence_entity' => 'document',
+    'evidence_id' => 'cash-check-proof-1',
+], 8);
+if ($cashCheckId < 1) {
+    fwrite(STDERR, "Cash check creation failed.\n");
+    exit(1);
+}
+$cashCheckReplay = $finance->recordCashCheck([
+    'external_key' => 'ci:cash-check:1',
+    'account_id' => $cashAccountId,
+    'actual_balance' => '195.00',
+], 8);
+if ($cashCheckReplay !== $cashCheckId) {
+    fwrite(STDERR, "Cash check replay was not idempotent.\n");
+    exit(1);
+}
+$conflictingCashCheckRejected = false;
+try {
+    $finance->recordCashCheck([
+        'external_key' => 'ci:cash-check:1',
+        'account_id' => $cashAccountId,
+        'actual_balance' => '194.00',
+    ], 8);
+} catch (\RuntimeException) {
+    $conflictingCashCheckRejected = true;
+}
+if (!$conflictingCashCheckRejected) {
+    fwrite(STDERR, "Conflicting cash-check replay was accepted.\n");
+    exit(1);
+}
+$cashChecks = $query->listCashChecks();
+$cashCheckRow = null;
+foreach ($cashChecks as $candidate) {
+    if ((int) ($candidate['id'] ?? 0) === $cashCheckId) {
+        $cashCheckRow = $candidate;
+        break;
+    }
+}
+if (!is_array($cashCheckRow)
+    || abs((float) $cashCheckRow['expected_balance'] - 200.0) > 0.0001
+    || abs((float) $cashCheckRow['actual_balance'] - 195.0) > 0.0001
+    || abs((float) $cashCheckRow['difference'] + 5.0) > 0.0001
+    || (string) ($cashCheckRow['evidence_id'] ?? '') !== 'cash-check-proof-1') {
+    fwrite(STDERR, "Cash check reconciliation snapshot is incorrect.\n");
+    exit(1);
+}
+
+$statementId = $finance->createStatement([
+    'external_key' => 'ci:statement:1',
+    'statement_type' => 'management',
+    'title' => 'CI Management Statement',
+    'period_start' => '2026-01-01',
+    'period_end' => '2026-12-31',
+    'currency' => 'EUR',
+    'owner_component' => 'com_example',
+    'owner_entity' => 'organization',
+    'owner_id' => 'rome',
+    'document_component' => 'com_example',
+    'document_entity' => 'document',
+    'document_id' => 'statement-document-1',
+], 1);
+$lineA = $finance->addStatementLine($statementId, [
+    'section_code' => 'REVENUE',
+    'line_code' => 'A1',
+    'label' => 'Membership revenue',
+    'line_type' => 'amount',
+    'amount' => '500.00',
+    'sort_order' => 10,
+], 1);
+$lineB = $finance->addStatementLine($statementId, [
+    'section_code' => 'NOTES',
+    'line_code' => 'N1',
+    'label' => 'Method note',
+    'line_type' => 'note',
+    'text_value' => 'Operational snapshot for CI.',
+    'sort_order' => 20,
+], 1);
+if ($statementId < 1 || $lineA < 1 || $lineB < 1) {
+    fwrite(STDERR, "Statement creation failed.\n");
+    exit(1);
+}
+
+$finance->finaliseStatement($statementId, 9);
+$statement = $finance->getStatement($statementId);
+if (!is_array($statement) || ($statement['status'] ?? '') !== 'finalised' || (int) ($statement['finalised_by'] ?? 0) !== 9) {
+    fwrite(STDERR, "Statement finalisation failed.\n");
+    exit(1);
+}
+
+$lineAfterFinaliseRejected = false;
+try {
+    $finance->addStatementLine($statementId, [
+        'label' => 'Late line',
+        'line_type' => 'amount',
+        'amount' => '1.00',
+    ], 1);
+} catch (\RuntimeException) {
+    $lineAfterFinaliseRejected = true;
+}
+if (!$lineAfterFinaliseRejected) {
+    fwrite(STDERR, "Finalised statement accepted a new line.\n");
+    exit(1);
+}
+
+$sameStatementApproverRejected = false;
+try {
+    $finance->approveStatement($statementId, 9);
+} catch (\RuntimeException) {
+    $sameStatementApproverRejected = true;
+}
+if (!$sameStatementApproverRejected) {
+    fwrite(STDERR, "Statement finaliser was allowed to self-approve.\n");
+    exit(1);
+}
+
+$finance->approveStatement($statementId, 10);
+$statement = $finance->getStatement($statementId);
+if (!is_array($statement) || ($statement['status'] ?? '') !== 'approved' || (int) ($statement['approved_by'] ?? 0) !== 10) {
+    fwrite(STDERR, "Statement approval failed.\n");
+    exit(1);
+}
+if (count($query->listStatementLines($statementId)) !== 2) {
+    fwrite(STDERR, "Statement lines were not preserved after approval.\n");
+    exit(1);
+}
+
+$summary15 = $query->getReportSummary('EUR');
+if ((int) ($summary15['cash_check_variances'] ?? 0) < 1
+    || abs((float) ($summary15['cash_variance_total'] ?? 0) + 5.0) > 0.0001) {
+    fwrite(STDERR, "Finance 1.5 reconciliation summary is incorrect.\n");
+    exit(1);
+}
+
+echo "Finance 1.5 reporting and reconciliation runtime writes OK\n";

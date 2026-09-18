@@ -1,0 +1,95 @@
+ALTER TABLE `#__decarofinance_accounts`
+  ADD COLUMN `code` VARCHAR(64) NULL AFTER `external_key`,
+  ADD KEY `idx_code` (`code`);
+
+CREATE TABLE IF NOT EXISTS `#__decarofinance_transfers` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `external_key` VARCHAR(191) NULL,
+  `from_account_id` BIGINT UNSIGNED NOT NULL,
+  `to_account_id` BIGINT UNSIGNED NOT NULL,
+  `amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `currency` CHAR(3) NOT NULL DEFAULT 'EUR',
+  `occurred_at` DATETIME NOT NULL,
+  `description` VARCHAR(500) NULL,
+  `source_component` VARCHAR(100) NULL,
+  `source_entity` VARCHAR(100) NULL,
+  `source_id` VARCHAR(191) NULL,
+  `out_transaction_id` BIGINT UNSIGNED NULL,
+  `in_transaction_id` BIGINT UNSIGNED NULL,
+  `created` DATETIME NOT NULL,
+  `created_by` INT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_external_key` (`external_key`),
+  KEY `idx_from_account` (`from_account_id`),
+  KEY `idx_to_account` (`to_account_id`),
+  KEY `idx_occurred` (`occurred_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `#__decarofinance_cash_checks` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `external_key` VARCHAR(191) NULL,
+  `account_id` BIGINT UNSIGNED NOT NULL,
+  `checked_at` DATETIME NOT NULL,
+  `expected_balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `actual_balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `difference` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `note` VARCHAR(1000) NULL,
+  `evidence_component` VARCHAR(100) NULL,
+  `evidence_entity` VARCHAR(100) NULL,
+  `evidence_id` VARCHAR(191) NULL,
+  `created` DATETIME NOT NULL,
+  `created_by` INT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_external_key` (`external_key`),
+  KEY `idx_account_checked` (`account_id`,`checked_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `#__decarofinance_statements` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `external_key` VARCHAR(191) NULL,
+  `owner_component` VARCHAR(100) NULL,
+  `owner_entity` VARCHAR(100) NULL,
+  `owner_id` VARCHAR(191) NULL,
+  `statement_type` VARCHAR(32) NOT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `period_start` DATE NULL,
+  `period_end` DATE NULL,
+  `currency` CHAR(3) NOT NULL DEFAULT 'EUR',
+  `status` VARCHAR(32) NOT NULL DEFAULT 'draft',
+  `source_component` VARCHAR(100) NULL,
+  `source_entity` VARCHAR(100) NULL,
+  `source_id` VARCHAR(191) NULL,
+  `document_component` VARCHAR(100) NULL,
+  `document_entity` VARCHAR(100) NULL,
+  `document_id` VARCHAR(191) NULL,
+  `finalised_at` DATETIME NULL,
+  `finalised_by` INT UNSIGNED NULL,
+  `approved_at` DATETIME NULL,
+  `approved_by` INT UNSIGNED NULL,
+  `created` DATETIME NOT NULL,
+  `created_by` INT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_external_key` (`external_key`),
+  KEY `idx_owner_period` (`owner_component`,`owner_entity`,`owner_id`,`period_end`),
+  KEY `idx_type_status` (`statement_type`,`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `#__decarofinance_statement_lines` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `statement_id` BIGINT UNSIGNED NOT NULL,
+  `section_code` VARCHAR(64) NULL,
+  `line_code` VARCHAR(64) NULL,
+  `label` VARCHAR(255) NOT NULL,
+  `line_type` VARCHAR(32) NOT NULL DEFAULT 'amount',
+  `amount` DECIMAL(15,2) NULL,
+  `text_value` TEXT NULL,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `source_component` VARCHAR(100) NULL,
+  `source_entity` VARCHAR(100) NULL,
+  `source_id` VARCHAR(191) NULL,
+  `created` DATETIME NOT NULL,
+  `created_by` INT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_statement_sort` (`statement_id`,`sort_order`,`id`),
+  KEY `idx_line_code` (`line_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci;

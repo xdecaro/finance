@@ -92,7 +92,7 @@ final class FinanceController extends BaseController
         $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
         try {
             $id=$this->service()->createAccount([
-                'external_key'=>$input->getString('external_key'),
+                'external_key'=>$input->getString('external_key'),'code'=>$input->getString('code'),
                 'owner_component'=>$input->getString('owner_component'),'owner_entity'=>$input->getString('owner_entity'),'owner_id'=>$input->getString('owner_id'),
                 'name'=>$input->getString('name'),'account_type'=>$input->getString('account_type','bank'),'identifier'=>$input->getString('identifier'),
                 'currency'=>$input->getString('currency','EUR'),'opening_balance'=>$input->getString('opening_balance','0'),
@@ -159,6 +159,78 @@ final class FinanceController extends BaseController
             $this->service()->cancelOrder($this->input->getInt('order_id'));
             $this->message(Text::_('COM_DECAROFINANCE_ORDER_CANCELLED'),'message','orders');
         } catch (Throwable $e) { $this->message($e->getMessage(),'error','orders'); }
+    }
+
+    public function transfer(): void
+    {
+        $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
+        try {
+            $id=$this->service()->transferBetweenAccounts([
+                'external_key'=>$input->getString('external_key'),'from_account_id'=>$input->getInt('from_account_id'),'to_account_id'=>$input->getInt('to_account_id'),
+                'amount'=>$input->getString('amount'),'currency'=>$input->getString('currency','EUR'),'occurred_at'=>$input->getString('occurred_at'),'description'=>$input->getString('description'),
+                'source_component'=>$input->getString('source_component'),'source_entity'=>$input->getString('source_entity'),'source_id'=>$input->getString('source_id'),
+            ],$this->userId());
+            $this->message(Text::sprintf('COM_DECAROFINANCE_TRANSFER_CREATED',$id),'message','transfers');
+        } catch (Throwable $e) { $this->message($e->getMessage(),'error','transfers'); }
+    }
+
+    public function cashCheck(): void
+    {
+        $this->checkToken(); $this->authorise('finance.reconcile'); $input=$this->input;
+        try {
+            $id=$this->service()->recordCashCheck([
+                'external_key'=>$input->getString('external_key'),'account_id'=>$input->getInt('account_id'),'checked_at'=>$input->getString('checked_at'),
+                'actual_balance'=>$input->getString('actual_balance'),'note'=>$input->getString('note'),
+                'evidence_component'=>$input->getString('evidence_component'),'evidence_entity'=>$input->getString('evidence_entity'),'evidence_id'=>$input->getString('evidence_id'),
+            ],$this->userId());
+            $this->message(Text::sprintf('COM_DECAROFINANCE_CASH_CHECK_CREATED',$id),'message','cashchecks');
+        } catch (Throwable $e) { $this->message($e->getMessage(),'error','cashchecks'); }
+    }
+
+    public function createStatement(): void
+    {
+        $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
+        try {
+            $id=$this->service()->createStatement([
+                'external_key'=>$input->getString('external_key'),'statement_type'=>$input->getString('statement_type'),'title'=>$input->getString('title'),
+                'period_start'=>$input->getString('period_start'),'period_end'=>$input->getString('period_end'),'currency'=>$input->getString('currency','EUR'),
+                'owner_component'=>$input->getString('owner_component'),'owner_entity'=>$input->getString('owner_entity'),'owner_id'=>$input->getString('owner_id'),
+                'source_component'=>$input->getString('source_component'),'source_entity'=>$input->getString('source_entity'),'source_id'=>$input->getString('source_id'),
+                'document_component'=>$input->getString('document_component'),'document_entity'=>$input->getString('document_entity'),'document_id'=>$input->getString('document_id'),
+            ],$this->userId());
+            $this->message(Text::sprintf('COM_DECAROFINANCE_STATEMENT_CREATED',$id),'message','statements');
+        } catch (Throwable $e) { $this->message($e->getMessage(),'error','statements'); }
+    }
+
+    public function addStatementLine(): void
+    {
+        $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
+        try {
+            $id=$this->service()->addStatementLine($input->getInt('statement_id'),[
+                'section_code'=>$input->getString('section_code'),'line_code'=>$input->getString('line_code'),'label'=>$input->getString('label'),
+                'line_type'=>$input->getString('line_type','amount'),'amount'=>$input->getString('amount'),'text_value'=>$input->getString('text_value'),'sort_order'=>$input->getInt('sort_order'),
+                'source_component'=>$input->getString('source_component'),'source_entity'=>$input->getString('source_entity'),'source_id'=>$input->getString('source_id'),
+            ],$this->userId());
+            $this->message(Text::sprintf('COM_DECAROFINANCE_STATEMENT_LINE_CREATED',$id),'message','statements');
+        } catch (Throwable $e) { $this->message($e->getMessage(),'error','statements'); }
+    }
+
+    public function finaliseStatement(): void
+    {
+        $this->checkToken(); $this->authorise('finance.reconcile');
+        try {
+            $this->service()->finaliseStatement($this->input->getInt('statement_id'),$this->userId());
+            $this->message(Text::_('COM_DECAROFINANCE_STATEMENT_FINALISED'),'message','statements');
+        } catch (Throwable $e) { $this->message($e->getMessage(),'error','statements'); }
+    }
+
+    public function approveStatement(): void
+    {
+        $this->checkToken(); $this->authorise('finance.approve');
+        try {
+            $this->service()->approveStatement($this->input->getInt('statement_id'),$this->userId());
+            $this->message(Text::_('COM_DECAROFINANCE_STATEMENT_APPROVED'),'message','statements');
+        } catch (Throwable $e) { $this->message($e->getMessage(),'error','statements'); }
     }
 
     private function service(): FinanceService { return Factory::getContainer()->get(FinanceService::class); }

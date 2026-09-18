@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.0 — 2026-09-18
+- Added idempotent transfers between financial accounts, implemented as paired append-only expense/income transactions so account balances remain auditable without inflating operating income/expense KPIs.
+- Added account codes for clearer bank/cash ledger identification.
+- Added physical cash checks with expected balance snapshot, actual counted balance, difference, notes and optional supporting-document reference.
+- Added generic financial statements with typed statement records, ordered lines, optional source/document references, finalisation lock and separate approval by a different Joomla user.
+- Added administrator views for Transfers, Cash checks and Statements, plus new dashboard/reporting KPIs and responsive dark-safe layouts.
+- Added the dedicated `finance.reconcile` ACL action for cash checks and statement finalisation while retaining separate approval and execution permissions.
+- Extended Core capabilities and Analytics datasets/metrics for transfers, cash checks and statements.
+- Added non-destructive 1.5.0 SQL updates, Joomla runtime coverage and real 1.4.0 → 1.5.0 upgrade preservation tests.
+- Statement types such as financial position, management, mission and social report are workflow/snapshot containers only; Finance does not claim statutory, tax or legal-compliance completeness.
+
 ## 1.4.0 — 2026-09-18
 - Added financial accounts for bank, cash, payment and other ledgers, with optional organization ownership and opening balances.
 - Added append-only financial transactions linked to accounts, budget lines, categories, source records, counterparties and optional document/evidence references.

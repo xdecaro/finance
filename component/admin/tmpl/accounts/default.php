@@ -10,6 +10,7 @@ use Joomla\CMS\Router\Route;
     <div class="xdecaro-card__header"><h2 class="xdecaro-card__title"><?php echo Text::_('COM_DECAROFINANCE_NEW_ACCOUNT'); ?></h2></div>
     <div class="xdecaro-card__body">
       <form action="<?php echo Route::_('index.php?option=com_decarofinance&task=finance.createAccount'); ?>" method="post" class="xdf-form-grid">
+        <label><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_CODE'); ?><input class="form-control" name="code" maxlength="64"></label>
         <label><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_NAME'); ?><input class="form-control" name="name" required maxlength="255"></label>
         <label><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_TYPE'); ?>
           <select class="form-select" name="account_type">
@@ -37,11 +38,12 @@ use Joomla\CMS\Router\Route;
   <section class="xdecaro-card">
     <div class="xdecaro-card__body xdf-table-wrap">
       <table class="table table-striped">
-        <thead><tr><th>ID</th><th><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_NAME'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_TYPE'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_OWNER'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_CURRENCY'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_BALANCE'); ?></th></tr></thead>
+        <thead><tr><th>ID</th><th><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_CODE'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_NAME'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_TYPE'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_OWNER'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_CURRENCY'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_BALANCE'); ?></th></tr></thead>
         <tbody>
         <?php foreach ($this->items as $row): $owner=array_filter([$row['owner_component'],$row['owner_entity'],$row['owner_id']]); ?>
           <tr>
             <td><?php echo (int)$row['id']; ?></td>
+            <td><?php echo htmlspecialchars((string)($row['code']??''),ENT_QUOTES,'UTF-8'); ?></td>
             <td><?php echo htmlspecialchars((string)$row['name'],ENT_QUOTES,'UTF-8'); ?><div class="xdf-muted"><?php echo htmlspecialchars((string)($row['identifier']??''),ENT_QUOTES,'UTF-8'); ?></div></td>
             <td><?php echo htmlspecialchars((string)$row['account_type'],ENT_QUOTES,'UTF-8'); ?></td>
             <td><?php echo htmlspecialchars(implode(':',$owner),ENT_QUOTES,'UTF-8'); ?></td>
