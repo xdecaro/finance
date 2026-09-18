@@ -27,7 +27,7 @@ final class FinanceQueryService
             'income_total'=>$this->sumWhere('#__decarofinance_transactions','amount',"direction = 'income' AND currency = ".$this->db->quote($currency)),
             'expense_total'=>$this->sumWhere('#__decarofinance_transactions','amount',"direction = 'expense' AND currency = ".$this->db->quote($currency)),
             'pending_orders'=>$this->count('#__decarofinance_orders',"status IN ('draft','pending','approved') AND currency = ".$this->db->quote($currency)),
-            'cash_check_variances'=>$this->count('#__decarofinance_cash_checks','ABS(difference) >= 0.005'),
+            'cash_check_variances'=>$this->count('#__decarofinance_cash_checks','ABS(difference) >= 0.005 AND account_id IN (SELECT id FROM '.$this->db->quoteName('#__decarofinance_accounts').' WHERE currency = '.$this->db->quote($currency).')'),
             'draft_statements'=>$this->count('#__decarofinance_statements',"status = 'draft' AND currency = ".$this->db->quote($currency)),
         ];
     }
@@ -168,7 +168,7 @@ final class FinanceQueryService
         $summary['net_total']=round((float)$summary['income_total']-(float)$summary['expense_total'],2);
         $summary['approved_orders_amount']=$this->sumWhere('#__decarofinance_orders','amount',"direction = 'expense' AND status = 'approved' AND currency = ".$this->db->quote($currency));
         $summary['pending_orders_amount']=$this->sumWhere('#__decarofinance_orders','amount',"direction = 'expense' AND status IN ('draft','pending') AND currency = ".$this->db->quote($currency));
-        $summary['cash_variance_total']=$this->sumWhere('#__decarofinance_cash_checks','difference','1=1');
+        $summary['cash_variance_total']=$this->cashVarianceTotal($currency);
         return $summary;
     }
 
@@ -223,6 +223,16 @@ final class FinanceQueryService
     private function outstandingTotal(string $currency): float
     {
         $q=$this->db->getQuery(true)->select('COALESCE(SUM(o.amount - COALESCE(a.paid,0)),0)')->from($this->db->quoteName('#__decarofinance_obligations','o'))->leftJoin('(SELECT obligation_id, SUM(amount) AS paid FROM '.$this->db->quoteName('#__decarofinance_payment_allocations').' GROUP BY obligation_id) a ON a.obligation_id=o.id')->where("o.status IN ('open','partial')")->where('o.currency = '.$this->db->quote($currency));
+        return (float)$this->db->setQuery($q)->loadResult();
+    }
+
+    private function cashVarianceTotal(string $currency): float
+    {
+        $q=$this->db->getQuery(true)
+            ->select('COALESCE(SUM(c.difference),0)')
+            ->from($this->db->quoteName('#__decarofinance_cash_checks','c'))
+            ->innerJoin($this->db->quoteName('#__decarofinance_accounts','a').' ON a.id = c.account_id')
+            ->where('a.currency = '.$this->db->quote($currency));
         return (float)$this->db->setQuery($q)->loadResult();
     }
 
