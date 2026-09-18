@@ -340,7 +340,8 @@ final class FinanceService
         $currency=$this->currency($data['currency'] ?? $from['currency']);
         if ((string)$from['currency']!==$currency || (string)$to['currency']!==$currency) { throw new InvalidArgumentException('Transfer accounts must use the same currency.'); }
         $amount=$this->positiveAmount($data['amount'] ?? 0,'amount');
-        $occurredAt=$this->nullableDateTime($data['occurred_at'] ?? null) ?? Factory::getDate()->toSql();
+        $explicitOccurredAt=trim((string)($data['occurred_at'] ?? ''));
+        $occurredAt=$this->nullableDateTime($explicitOccurredAt) ?? Factory::getDate()->toSql();
         [$sourceComponent,$sourceEntity,$sourceId]=$this->optionalReference($data,'source');
 
         if ($externalKey!==null) {
@@ -351,7 +352,8 @@ final class FinanceService
                     && (int)$current['from_account_id']===$fromId
                     && (int)$current['to_account_id']===$toId
                     && abs((float)$current['amount']-$amount)<=0.0001
-                    && (string)$current['currency']===$currency) {
+                    && (string)$current['currency']===$currency
+                    && ($explicitOccurredAt==='' || (string)$current['occurred_at']===$occurredAt)) {
                     return $existing;
                 }
                 throw new RuntimeException('Conflicting transfer replay for the same external_key.');
@@ -395,7 +397,8 @@ final class FinanceService
                         && (int)$current['from_account_id']===$fromId
                         && (int)$current['to_account_id']===$toId
                         && abs((float)$current['amount']-$amount)<=0.0001
-                        && (string)$current['currency']===$currency) {
+                        && (string)$current['currency']===$currency
+                        && ($explicitOccurredAt==='' || (string)$current['occurred_at']===$occurredAt)) {
                         return $existing;
                     }
                 }
