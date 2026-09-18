@@ -4,24 +4,21 @@ namespace Xdecaro\Component\Decarofinance\Administrator\Helper;
 defined('_JEXEC') or die;
 
 use Joomla\CMS\Factory;
+use Joomla\CMS\Uri\Uri;
 
 final class UiHelper
 {
-    private const VERSION = '1.5.2';
+    private const VERSION = '1.5.3';
 
     public static function loadAssets(): void
     {
-        $wa = Factory::getApplication()->getDocument()->getWebAssetManager();
-        $styleName = 'com_decarofinance.admin.runtime';
+        $document = Factory::getApplication()->getDocument();
+        $href = Uri::root(true) . '/media/com_decarofinance/css/admin.css?v=' . rawurlencode(self::VERSION);
 
-        if (!$wa->assetExists('style', $styleName)) {
-            $wa->registerStyle(
-                $styleName,
-                'com_decarofinance/css/admin.css',
-                ['version' => self::VERSION]
-            );
-        }
-
-        $wa->useStyle($styleName);
+        // The site's Joomla administrator currently does not emit the Finance
+        // stylesheet when it is activated only through the component WAM registry.
+        // addHeadLink produces the exact stylesheet link proven to work in-browser,
+        // while remaining scoped to Finance administrator views only.
+        $document->addHeadLink($href, 'stylesheet', 'rel', ['type' => 'text/css']);
     }
 }
