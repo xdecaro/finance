@@ -7,7 +7,6 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Toolbar\ToolbarHelper;
-use Xdecaro\Component\Decarofinance\Administrator\Service\FinanceQueryService;
 
 final class HtmlView extends BaseHtmlView
 {
@@ -23,7 +22,9 @@ final class HtmlView extends BaseHtmlView
         if (!$identity->authorise('core.manage','com_decarofinance')) { throw new \RuntimeException(Text::_('JERROR_ALERTNOAUTHOR'),403); }
         ToolbarHelper::title(Text::_('COM_DECAROFINANCE_STATEMENTS'),'file');
         $wa=$app->getDocument()->getWebAssetManager(); $wa->getRegistry()->addExtensionRegistryFile('com_decarofinance'); $wa->useStyle('com_decarofinance.admin');
-        $query=Factory::getContainer()->get(FinanceQueryService::class);
+        $component=$app->bootComponent('com_decarofinance');
+        if (!$component instanceof \Xdecaro\Component\Decarofinance\Administrator\Extension\DecarofinanceComponent) { throw new \RuntimeException('Finance component is unavailable.'); }
+        $query=$component->getFinanceQueryService();
         $this->items=$query->listStatements();
         foreach ($this->items as $row) { $this->lines[(int)$row['id']]=$query->listStatementLines((int)$row['id']); }
         $this->canCreate=$identity->authorise('core.create','com_decarofinance');
