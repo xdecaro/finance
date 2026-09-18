@@ -394,6 +394,24 @@ if (abs($finance->getAccountBalance($accountId1) - 650.0) > 0.0001
     exit(1);
 }
 
+$reservedTransferCategoryRejected = false;
+try {
+    $finance->recordTransaction([
+        'external_key' => 'ci:fake-transfer:1',
+        'account_id' => $accountId1,
+        'direction' => 'expense',
+        'category' => 'internal_transfer',
+        'amount' => '1.00',
+        'currency' => 'EUR',
+    ], 1);
+} catch (\InvalidArgumentException) {
+    $reservedTransferCategoryRejected = true;
+}
+if (!$reservedTransferCategoryRejected) {
+    fwrite(STDERR, "Reserved internal-transfer category accepted a direct transaction.\n");
+    exit(1);
+}
+
 $summaryAfterTransfer = $query->getSummary('EUR');
 if (abs((float) $summaryAfterTransfer['expense_total'] - 250.0) > 0.0001
     || abs((float) $summaryAfterTransfer['income_total']) > 0.0001) {
