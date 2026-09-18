@@ -324,13 +324,11 @@ final class FinanceService
         return round((float)$account['opening_balance']+(float)$this->db->setQuery($q)->loadResult(),2);
     }
 
+    public function getTransfer(int $id): ?array { return $this->findById('#__decarofinance_transfers',$id); }
+
     public function transferBetweenAccounts(array $data, int $actorUserId=0): int
     {
         $externalKey=$this->externalKey($data['external_key'] ?? null);
-        if ($externalKey!==null) {
-            $existing=$this->findExternal('#__decarofinance_transfers',$externalKey);
-            if ($existing>0) { return $existing; }
-        }
         $fromId=(int)($data['from_account_id'] ?? 0); $toId=(int)($data['to_account_id'] ?? 0);
         if ($fromId<1 || $toId<1 || $fromId===$toId) { throw new InvalidArgumentException('Transfer requires two different financial accounts.'); }
         $from=$this->getAccount($fromId); $to=$this->getAccount($toId);
@@ -340,6 +338,21 @@ final class FinanceService
         $amount=$this->positiveAmount($data['amount'] ?? 0,'amount');
         $occurredAt=$this->nullableDateTime($data['occurred_at'] ?? null) ?? Factory::getDate()->toSql();
         [$sourceComponent,$sourceEntity,$sourceId]=$this->optionalReference($data,'source');
+
+        if ($externalKey!==null) {
+            $existing=$this->findExternal('#__decarofinance_transfers',$externalKey);
+            if ($existing>0) {
+                $current=$this->getTransfer($existing);
+                if ($current!==null
+                    && (int)$current['from_account_id']===$fromId
+                    && (int)$current['to_account_id']===$toId
+                    && abs((float)$current['amount']-$amount)<=0.0001
+                    && (string)$current['currency']===$currency) {
+                    return $existing;
+                }
+                throw new RuntimeException('Conflicting transfer replay for the same external_key.');
+            }
+        }
 
         $this->db->transactionStart();
         try {
@@ -370,22 +383,50 @@ final class FinanceService
             return $id;
         } catch (Throwable $e) {
             $this->db->transactionRollback();
-            if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_transfers',$externalKey); if ($existing>0) { return $existing; } }
+            if ($externalKey!==null) {
+                $existing=$this->findExternal('#__decarofinance_transfers',$externalKey);
+                if ($existing>0) {
+                    $current=$this->getTransfer($existing);
+                    if ($current!==null
+                        && (int)$current['from_account_id']===$fromId
+                        && (int)$current['to_account_id']===$toId
+                        && abs((float)$current['amount']-$amount)<=0.0001
+                        && (string)$current['currency']===$currency) {
+                        return $existing;
+                    }
+                }
+            }
             throw $e;
         }
     }
 
+    public function getCashCheck(int $id): ?array { return $this->findById('#__decarofinance_cash_checks',$id); }
+
     public function recordCashCheck(array $data, int $actorUserId=0): int
     {
         $externalKey=$this->externalKey($data['external_key'] ?? null);
-        if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_cash_checks',$externalKey); if ($existing>0) { return $existing; } }
         $accountId=(int)($data['account_id'] ?? 0);
         $account=$this->getAccount($accountId);
         if ($account===null || (int)($account['state'] ?? 0)!==1) { throw new InvalidArgumentException('Financial account is unavailable.'); }
         if ((string)$account['account_type']!=='cash') { throw new InvalidArgumentException('Cash checks can only be recorded for cash accounts.'); }
-        $checkedAt=$this->nullableDateTime($data['checked_at'] ?? null) ?? Factory::getDate()->toSql();
+
+        $explicitCheckedAt=trim((string)($data['checked_at'] ?? ''));
+        $checkedAt=$this->nullableDateTime($explicitCheckedAt) ?? Factory::getDate()->toSql();
+        $actual=$this->nonNegativeAmount($data['actual_balance'] ?? 0,'actual_balance');
+
+        if ($externalKey!==null) {
+            $existing=$this->findExternal('#__decarofinance_cash_checks',$externalKey);
+            if ($existing>0) {
+                $current=$this->getCashCheck($existing);
+                $same=$current!==null
+                    && (int)$current['account_id']===$accountId
+                    && abs((float)$current['actual_balance']-$actual)<=0.0001;
+                if ($same && ($explicitCheckedAt==='' || (string)$current['checked_at']===$checkedAt)) { return $existing; }
+                throw new RuntimeException('Conflicting cash-check replay for the same external_key.');
+            }
+        }
+
         $expected=$this->getAccountBalance($accountId,$checkedAt);
-        $actual=round($this->number($data['actual_balance'] ?? 0,'actual_balance'),2);
         [$evidenceComponent,$evidenceEntity,$evidenceId]=$this->optionalReference($data,'evidence');
         $row=(object)[
             'external_key'=>$externalKey,'account_id'=>$accountId,'checked_at'=>$checkedAt,'expected_balance'=>$expected,'actual_balance'=>$actual,
@@ -393,7 +434,17 @@ final class FinanceService
             'evidence_component'=>$evidenceComponent,'evidence_entity'=>$evidenceEntity,'evidence_id'=>$evidenceId,
             'created'=>Factory::getDate()->toSql(),'created_by'=>max(0,$actorUserId),
         ];
-        $this->db->insertObject('#__decarofinance_cash_checks',$row);
+        try { $this->db->insertObject('#__decarofinance_cash_checks',$row); }
+        catch (Throwable $e) {
+            if ($externalKey!==null) {
+                $existing=$this->findExternal('#__decarofinance_cash_checks',$externalKey);
+                if ($existing>0) {
+                    $current=$this->getCashCheck($existing);
+                    if ($current!==null && (int)$current['account_id']===$accountId && abs((float)$current['actual_balance']-$actual)<=0.0001) { return $existing; }
+                }
+            }
+            throw $e;
+        }
         $id=(int)$this->db->insertid(); if ($id<1) { throw new RuntimeException('Cash check was not created.'); }
         return $id;
     }
