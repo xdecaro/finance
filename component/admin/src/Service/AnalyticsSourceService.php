@@ -23,6 +23,8 @@ final class AnalyticsSourceService
             ['key'=>'finance.transactions.income','label'=>'Recorded income','type'=>'currency'],
             ['key'=>'finance.transactions.expense','label'=>'Recorded expenses','type'=>'currency'],
             ['key'=>'finance.orders.pending','label'=>'Orders to complete','type'=>'number'],
+            ['key'=>'finance.cashchecks.variances','label'=>'Cash checks with variance','type'=>'number'],
+            ['key'=>'finance.statements.draft','label'=>'Draft statements','type'=>'number'],
         ];
     }
 
@@ -36,6 +38,9 @@ final class AnalyticsSourceService
             ['key'=>'finance.deposits','label'=>'Deposit accounts'],
             ['key'=>'finance.accounts','label'=>'Financial accounts'],
             ['key'=>'finance.orders','label'=>'Financial orders'],
+            ['key'=>'finance.transfers','label'=>'Financial transfers'],
+            ['key'=>'finance.cashchecks','label'=>'Cash checks'],
+            ['key'=>'finance.statements','label'=>'Financial statements'],
             ['key'=>'finance.budgets.usage','label'=>'Budget usage'],
         ];
     }
@@ -55,6 +60,8 @@ final class AnalyticsSourceService
             'finance.transactions.income'=>'income_total',
             'finance.transactions.expense'=>'expense_total',
             'finance.orders.pending'=>'pending_orders',
+            'finance.cashchecks.variances'=>'cash_check_variances',
+            'finance.statements.draft'=>'draft_statements',
         ];
         if (!isset($map[$key])) { throw new RuntimeException('Unknown Finance metric.'); }
         return ['key'=>$key,'value'=>$s[$map[$key]],'currency'=>$currency];
@@ -71,6 +78,9 @@ final class AnalyticsSourceService
             'finance.deposits'=>$this->query->listDepositAccounts((int)($context['limit'] ?? 100)),
             'finance.accounts'=>$this->query->listAccounts((int)($context['limit'] ?? 100)),
             'finance.orders'=>$this->query->listOrders((int)($context['limit'] ?? 100)),
+            'finance.transfers'=>$this->query->listTransfers((int)($context['limit'] ?? 100)),
+            'finance.cashchecks'=>$this->query->listCashChecks((int)($context['limit'] ?? 100)),
+            'finance.statements'=>$this->query->listStatements((int)($context['limit'] ?? 100)),
             'finance.budgets.usage'=>$this->query->reportBudgetUsage($currency),
             default=>throw new RuntimeException('Unknown Finance dataset.'),
         };
