@@ -1,6 +1,6 @@
 # Finance by xdecaro
 
-Finance is the financial layer of the xdecaro Joomla ecosystem. Current version: **1.5.0**.
+Finance is the financial layer of the xdecaro Joomla ecosystem. Current version: **1.5.1**.
 
 ## Ownership
 Finance owns budgets, obligations, payments, payment allocations, deposit/caution accounts and append-only movements, financial accounts, financial transactions, internal transfers, cash checks, collection/payment orders, statement snapshots, due dates, budget coverage and financial audit metadata.
@@ -55,7 +55,7 @@ Documents can be referenced as supporting evidence without becoming a required d
 ## Compatibility and security
 Target Joomla 4, 5 and 6 where technically possible, with PHP 8.1+. Administrator writes enforce server-side ACL and CSRF. SQL uses `#__`, bound queries or integer-cast identifiers, non-destructive updates and `utf8mb4` storage. Financial transaction and deposit ledgers are append-only through the public service: corrections should be represented by explicit new movements rather than destructive rewrites.
 
-The package CI performs clean installation and runtime regression checks on supported Joomla branches without requiring optional xdecaro products.
+The package CI performs clean installation and runtime regression checks on supported Joomla branches without requiring optional xdecaro products. Administrator code resolves Finance services through the booted component API rather than Joomla's global DI container, preserving the component-local service-provider boundary.
 
 ## Build
 `bash build/build.sh` creates the component, Analytics plugin, Scheduler plugin, package and `SHA256SUMS.txt` in `dist/`.
