@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.1 — 2026-09-18
+- Fixed the administrator fatal error `Resource '...FinanceQueryService' has not been registered with the container`.
+- Administrator views now resolve Finance query/Core services from the booted `com_decarofinance` component, which owns the extension service container, instead of requesting component-local services from Joomla's global container.
+- Finance write actions now resolve `FinanceService` through the same component API, preventing the equivalent failure when submitting forms.
+- Added a regression contract that rejects direct global-container lookups for component-owned services.
+- Added a real Joomla upgrade test from released Finance 1.5.0 to 1.5.1; no database schema or public Finance API changes.
+
 ## 1.5.0 — 2026-09-18
 - Added idempotent transfers between financial accounts, implemented as paired append-only expense/income transactions so account balances remain auditable without inflating operating income/expense KPIs.
 - Added account codes for clearer bank/cash ledger identification.
