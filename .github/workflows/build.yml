@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(tr -d '\r\n' < VERSION)"; test "$VERSION" = '1.5.2'
+          VERSION="$(tr -d '\r\n' < VERSION)"; test "$VERSION" = '1.5.3'
           python3 - <<'PY'
           import json,pathlib,xml.etree.ElementTree as ET
           v=pathlib.Path('VERSION').read_text().strip()
@@ -114,7 +114,7 @@ jobs:
           for c in expected_balance actual_balance difference evidence_component; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_cash_checks' AND column_name='${c}';")" = 1; done
           for c in statement_type status finalised_by approved_by document_component; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='joomla' AND table_name='fin_decarofinance_statements' AND column_name='${c}';")" = 1; done
           schema="$("${MYSQL[@]}" -e "SELECT s.version_id FROM fin_schemas s JOIN fin_extensions e ON e.extension_id=s.extension_id WHERE e.type='component' AND e.element='com_decarofinance' LIMIT 1;")"
-          test "$schema" = '1.5.2'
+          test "$schema" = '1.5.3'
       - name: Exercise Finance 1.5.2 accounting writes
         shell: bash
         run: |
@@ -186,4 +186,4 @@ jobs:
           test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM fin_decarofinance_obligations WHERE external_key='upgrade:obligation:1' AND amount=99.00;")" = 1
           for t in accounts orders order_approvals transfers cash_checks statements statement_lines; do test "$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='joomla' AND table_name='fin_decarofinance_${t}';")" = 1; done
           schema="$("${MYSQL[@]}" -e "SELECT s.version_id FROM fin_schemas s JOIN fin_extensions e ON e.extension_id=s.extension_id WHERE e.type='component' AND e.element='com_decarofinance' LIMIT 1;")"
-          test "$schema" = '1.5.2'
+          test "$schema" = '1.5.3'
