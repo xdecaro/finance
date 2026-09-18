@@ -132,7 +132,7 @@ final class FinanceQueryService
     public function listStatements(int $limit=200): array
     {
         $q=$this->db->getQuery(true)
-            ->select('s.*, COUNT(l.id) AS line_count, COALESCE(SUM(CASE WHEN l.line_type IN ('.$this->db->quote('amount').','.$this->db->quote('subtotal').') THEN l.amount ELSE 0 END),0) AS amount_total')
+            ->select('s.*, COUNT(l.id) AS line_count, COALESCE(SUM(CASE WHEN l.line_type = '.$this->db->quote('amount').' THEN l.amount ELSE 0 END),0) AS amount_total')
             ->from($this->db->quoteName('#__decarofinance_statements','s'))
             ->leftJoin($this->db->quoteName('#__decarofinance_statement_lines','l').' ON l.statement_id = s.id')
             ->group('s.id')
