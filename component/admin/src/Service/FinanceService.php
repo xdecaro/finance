@@ -17,6 +17,8 @@ final class FinanceService
     private const DIRECTIONS = ['income','expense'];
     private const ACCOUNT_TYPES = ['bank','cash','payment','other'];
     private const ORDER_STATUSES = ['draft','pending','approved','executed','cancelled'];
+    private const STATEMENT_TYPES = ['operational','financial_position','management','mission','social','custom'];
+    private const STATEMENT_STATUSES = ['draft','finalised','approved'];
 
     private DatabaseInterface $db;
 
@@ -227,7 +229,7 @@ final class FinanceService
         $name=trim((string)($data['name'] ?? '')); if ($name==='' || mb_strlen($name)>255) { throw new InvalidArgumentException('Account name is required.'); }
         $type=strtolower(trim((string)($data['account_type'] ?? 'bank'))); if (!in_array($type,self::ACCOUNT_TYPES,true)) { throw new InvalidArgumentException('Invalid account type.'); }
         $row=(object)[
-            'external_key'=>$externalKey,'owner_component'=>$ownerComponent,'owner_entity'=>$ownerEntity,'owner_id'=>$ownerId,
+            'external_key'=>$externalKey,'code'=>$this->nullableToken($data['code'] ?? null,64,'code'),'owner_component'=>$ownerComponent,'owner_entity'=>$ownerEntity,'owner_id'=>$ownerId,
             'name'=>$name,'account_type'=>$type,'identifier'=>$this->nullableText($data['identifier'] ?? null,191),
             'currency'=>$this->currency($data['currency'] ?? 'EUR'),'opening_balance'=>round($this->number($data['opening_balance'] ?? 0,'opening_balance'),2),
             'state'=>1,'created'=>Factory::getDate()->toSql(),'created_by'=>max(0,$actorUserId),
@@ -304,6 +306,171 @@ final class FinanceService
     }
 
     public function getOrder(int $id): ?array { return $this->findById('#__decarofinance_orders',$id); }
+
+    public function getAccountBalance(int $accountId, ?string $at=null): float
+    {
+        $account=$this->getAccount($accountId);
+        if ($account===null) { throw new InvalidArgumentException('Financial account not found.'); }
+        $id=$accountId;
+        $q=$this->db->getQuery(true)
+            ->select('COALESCE(SUM(CASE WHEN direction = '.$this->db->quote('income').' THEN amount ELSE -amount END),0)')
+            ->from($this->db->quoteName('#__decarofinance_transactions'))
+            ->where($this->db->quoteName('account_id').' = :id')
+            ->bind(':id',$id,ParameterType::INTEGER);
+        if ($at!==null && trim($at)!=='') {
+            $atSql=$this->nullableDateTime($at);
+            $q->where($this->db->quoteName('occurred_at').' <= :at')->bind(':at',$atSql);
+        }
+        return round((float)$account['opening_balance']+(float)$this->db->setQuery($q)->loadResult(),2);
+    }
+
+    public function transferBetweenAccounts(array $data, int $actorUserId=0): int
+    {
+        $externalKey=$this->externalKey($data['external_key'] ?? null);
+        if ($externalKey!==null) {
+            $existing=$this->findExternal('#__decarofinance_transfers',$externalKey);
+            if ($existing>0) { return $existing; }
+        }
+        $fromId=(int)($data['from_account_id'] ?? 0); $toId=(int)($data['to_account_id'] ?? 0);
+        if ($fromId<1 || $toId<1 || $fromId===$toId) { throw new InvalidArgumentException('Transfer requires two different financial accounts.'); }
+        $from=$this->getAccount($fromId); $to=$this->getAccount($toId);
+        if ($from===null || $to===null || (int)$from['state']!==1 || (int)$to['state']!==1) { throw new InvalidArgumentException('Transfer account is unavailable.'); }
+        $currency=$this->currency($data['currency'] ?? $from['currency']);
+        if ((string)$from['currency']!==$currency || (string)$to['currency']!==$currency) { throw new InvalidArgumentException('Transfer accounts must use the same currency.'); }
+        $amount=$this->positiveAmount($data['amount'] ?? 0,'amount');
+        $occurredAt=$this->nullableDateTime($data['occurred_at'] ?? null) ?? Factory::getDate()->toSql();
+        [$sourceComponent,$sourceEntity,$sourceId]=$this->optionalReference($data,'source');
+
+        $this->db->transactionStart();
+        try {
+            $row=(object)[
+                'external_key'=>$externalKey,'from_account_id'=>$fromId,'to_account_id'=>$toId,'amount'=>$amount,'currency'=>$currency,
+                'occurred_at'=>$occurredAt,'description'=>$this->nullableText($data['description'] ?? null,500),
+                'source_component'=>$sourceComponent,'source_entity'=>$sourceEntity,'source_id'=>$sourceId,
+                'out_transaction_id'=>null,'in_transaction_id'=>null,'created'=>Factory::getDate()->toSql(),'created_by'=>max(0,$actorUserId),
+            ];
+            $this->db->insertObject('#__decarofinance_transfers',$row);
+            $id=(int)$this->db->insertid(); if ($id<1) { throw new RuntimeException('Transfer was not created.'); }
+
+            $outId=$this->recordTransaction([
+                'external_key'=>'finance:transfer:'.$id.':out','account_id'=>$fromId,'direction'=>'expense','category'=>'internal_transfer',
+                'amount'=>$amount,'currency'=>$currency,'occurred_at'=>$occurredAt,
+                'source_component'=>'com_decarofinance','source_entity'=>'transfer','source_id'=>(string)$id,
+                'description'=>$data['description'] ?? 'Internal transfer',
+            ],$actorUserId);
+            $inId=$this->recordTransaction([
+                'external_key'=>'finance:transfer:'.$id.':in','account_id'=>$toId,'direction'=>'income','category'=>'internal_transfer',
+                'amount'=>$amount,'currency'=>$currency,'occurred_at'=>$occurredAt,
+                'source_component'=>'com_decarofinance','source_entity'=>'transfer','source_id'=>(string)$id,
+                'description'=>$data['description'] ?? 'Internal transfer',
+            ],$actorUserId);
+            $updated=(object)['id'=>$id,'out_transaction_id'=>$outId,'in_transaction_id'=>$inId];
+            $this->db->updateObject('#__decarofinance_transfers',$updated,'id');
+            $this->db->transactionCommit();
+            return $id;
+        } catch (Throwable $e) {
+            $this->db->transactionRollback();
+            if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_transfers',$externalKey); if ($existing>0) { return $existing; } }
+            throw $e;
+        }
+    }
+
+    public function recordCashCheck(array $data, int $actorUserId=0): int
+    {
+        $externalKey=$this->externalKey($data['external_key'] ?? null);
+        if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_cash_checks',$externalKey); if ($existing>0) { return $existing; } }
+        $accountId=(int)($data['account_id'] ?? 0);
+        $account=$this->getAccount($accountId);
+        if ($account===null || (int)($account['state'] ?? 0)!==1) { throw new InvalidArgumentException('Financial account is unavailable.'); }
+        if ((string)$account['account_type']!=='cash') { throw new InvalidArgumentException('Cash checks can only be recorded for cash accounts.'); }
+        $checkedAt=$this->nullableDateTime($data['checked_at'] ?? null) ?? Factory::getDate()->toSql();
+        $expected=$this->getAccountBalance($accountId,$checkedAt);
+        $actual=round($this->number($data['actual_balance'] ?? 0,'actual_balance'),2);
+        [$evidenceComponent,$evidenceEntity,$evidenceId]=$this->optionalReference($data,'evidence');
+        $row=(object)[
+            'external_key'=>$externalKey,'account_id'=>$accountId,'checked_at'=>$checkedAt,'expected_balance'=>$expected,'actual_balance'=>$actual,
+            'difference'=>round($actual-$expected,2),'note'=>$this->nullableText($data['note'] ?? null,1000),
+            'evidence_component'=>$evidenceComponent,'evidence_entity'=>$evidenceEntity,'evidence_id'=>$evidenceId,
+            'created'=>Factory::getDate()->toSql(),'created_by'=>max(0,$actorUserId),
+        ];
+        $this->db->insertObject('#__decarofinance_cash_checks',$row);
+        $id=(int)$this->db->insertid(); if ($id<1) { throw new RuntimeException('Cash check was not created.'); }
+        return $id;
+    }
+
+    public function createStatement(array $data, int $actorUserId=0): int
+    {
+        $externalKey=$this->externalKey($data['external_key'] ?? null);
+        if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_statements',$externalKey); if ($existing>0) { return $existing; } }
+        $type=strtolower(trim((string)($data['statement_type'] ?? 'operational')));
+        if (!in_array($type,self::STATEMENT_TYPES,true)) { throw new InvalidArgumentException('Invalid statement type.'); }
+        $title=trim((string)($data['title'] ?? '')); if ($title==='' || mb_strlen($title)>255) { throw new InvalidArgumentException('Statement title is required.'); }
+        [$ownerComponent,$ownerEntity,$ownerId]=$this->optionalReference($data,'owner');
+        [$sourceComponent,$sourceEntity,$sourceId]=$this->optionalReference($data,'source');
+        [$documentComponent,$documentEntity,$documentId]=$this->optionalReference($data,'document');
+        $row=(object)[
+            'external_key'=>$externalKey,'owner_component'=>$ownerComponent,'owner_entity'=>$ownerEntity,'owner_id'=>$ownerId,
+            'statement_type'=>$type,'title'=>$title,'period_start'=>$this->nullableDate($data['period_start'] ?? null),'period_end'=>$this->nullableDate($data['period_end'] ?? null),
+            'currency'=>$this->currency($data['currency'] ?? 'EUR'),'status'=>'draft',
+            'source_component'=>$sourceComponent,'source_entity'=>$sourceEntity,'source_id'=>$sourceId,
+            'document_component'=>$documentComponent,'document_entity'=>$documentEntity,'document_id'=>$documentId,
+            'finalised_at'=>null,'finalised_by'=>null,'approved_at'=>null,'approved_by'=>null,
+            'created'=>Factory::getDate()->toSql(),'created_by'=>max(0,$actorUserId),
+        ];
+        $this->db->insertObject('#__decarofinance_statements',$row);
+        $id=(int)$this->db->insertid(); if ($id<1) { throw new RuntimeException('Statement was not created.'); }
+        return $id;
+    }
+
+    public function getStatement(int $id): ?array { return $this->findById('#__decarofinance_statements',$id); }
+
+    public function addStatementLine(int $statementId, array $data, int $actorUserId=0): int
+    {
+        $statement=$this->getStatement($statementId);
+        if ($statement===null) { throw new RuntimeException('Statement not found.'); }
+        if ((string)$statement['status']!=='draft') { throw new RuntimeException('Only draft statements can be changed.'); }
+        $label=trim((string)($data['label'] ?? '')); if ($label==='' || mb_strlen($label)>255) { throw new InvalidArgumentException('Statement line label is required.'); }
+        $lineType=strtolower(trim((string)($data['line_type'] ?? 'amount')));
+        if (!in_array($lineType,['amount','text','subtotal','note'],true)) { throw new InvalidArgumentException('Invalid statement line type.'); }
+        $amount=null; $text=null;
+        if (in_array($lineType,['amount','subtotal'],true)) { $amount=round($this->number($data['amount'] ?? 0,'amount'),2); }
+        else { $text=$this->nullableText($data['text_value'] ?? null,4000); }
+        [$sourceComponent,$sourceEntity,$sourceId]=$this->optionalReference($data,'source');
+        $row=(object)[
+            'statement_id'=>$statementId,'section_code'=>$this->nullableToken($data['section_code'] ?? null,64,'section_code'),
+            'line_code'=>$this->nullableToken($data['line_code'] ?? null,64,'line_code'),'label'=>$label,'line_type'=>$lineType,
+            'amount'=>$amount,'text_value'=>$text,'sort_order'=>(int)($data['sort_order'] ?? 0),
+            'source_component'=>$sourceComponent,'source_entity'=>$sourceEntity,'source_id'=>$sourceId,
+            'created'=>Factory::getDate()->toSql(),'created_by'=>max(0,$actorUserId),
+        ];
+        $this->db->insertObject('#__decarofinance_statement_lines',$row);
+        return (int)$this->db->insertid();
+    }
+
+    public function finaliseStatement(int $statementId, int $userId): void
+    {
+        if ($userId<1) { throw new InvalidArgumentException('A valid user is required.'); }
+        $statement=$this->getStatement($statementId);
+        if ($statement===null) { throw new RuntimeException('Statement not found.'); }
+        if ((string)$statement['status']==='finalised' || (string)$statement['status']==='approved') { return; }
+        if ((string)$statement['status']!=='draft') { throw new RuntimeException('Statement cannot be finalised.'); }
+        if ($this->statementLineCount($statementId)<1) { throw new RuntimeException('A statement must contain at least one line before finalisation.'); }
+        $row=(object)['id'=>$statementId,'status'=>'finalised','finalised_at'=>Factory::getDate()->toSql(),'finalised_by'=>$userId];
+        $this->db->updateObject('#__decarofinance_statements',$row,'id');
+    }
+
+    public function approveStatement(int $statementId, int $userId): void
+    {
+        if ($userId<1) { throw new InvalidArgumentException('A valid approving user is required.'); }
+        $statement=$this->getStatement($statementId);
+        if ($statement===null) { throw new RuntimeException('Statement not found.'); }
+        if ((string)$statement['status']==='approved') { return; }
+        if ((string)$statement['status']!=='finalised') { throw new RuntimeException('Only finalised statements can be approved.'); }
+        if ((int)($statement['finalised_by'] ?? 0)===$userId) { throw new RuntimeException('The user who finalised the statement cannot also approve it.'); }
+        $row=(object)['id'=>$statementId,'status'=>'approved','approved_at'=>Factory::getDate()->toSql(),'approved_by'=>$userId];
+        $this->db->updateObject('#__decarofinance_statements',$row,'id');
+    }
+
 
     public function approveOrder(int $orderId, int $step, ?string $role, int $userId, ?string $note=null): void
     {
@@ -392,6 +559,13 @@ final class FinanceService
 
     public function getObligation(int $id): ?array { return $this->findById('#__decarofinance_obligations',$id); }
     public function getPayment(int $id): ?array { return $this->findById('#__decarofinance_payments',$id); }
+
+    private function statementLineCount(int $statementId): int
+    {
+        $id=$statementId;
+        $q=$this->db->getQuery(true)->select('COUNT(*)')->from($this->db->quoteName('#__decarofinance_statement_lines'))->where($this->db->quoteName('statement_id').' = :id')->bind(':id',$id,ParameterType::INTEGER);
+        return (int)$this->db->setQuery($q)->loadResult();
+    }
 
     private function hasOrderApprovalByUser(int $orderId, int $userId): bool
     {
