@@ -14,15 +14,20 @@ if (!is_file($helper) || !is_file($css)) {
 $helperSource = (string) file_get_contents($helper);
 
 foreach ([
-    "registerStyle(",
-    "com_decarofinance/css/admin.css",
-    "useStyle(",
-    "com_decarofinance.admin.runtime",
+    "addHeadLink(",
+    "/media/com_decarofinance/css/admin.css?v=",
+    "'stylesheet'",
+    "UiHelper",
 ] as $required) {
     if (!str_contains($helperSource, $required)) {
-        fwrite(STDERR, "ERROR: UiHelper is missing required asset loader fragment: {$required}\n");
+        fwrite(STDERR, "ERROR: UiHelper is missing required direct stylesheet fragment: {$required}\n");
         exit(1);
     }
+}
+
+if (str_contains($helperSource, 'registerStyle(') || str_contains($helperSource, 'useStyle(')) {
+    fwrite(STDERR, "ERROR: Finance critical administrator CSS still depends on WAM registration.\n");
+    exit(1);
 }
 
 $viewsRoot = $root . '/component/admin/src/View';
@@ -39,16 +44,11 @@ foreach ($iterator as $file) {
     if (!str_contains($source, 'UiHelper::loadAssets()')) {
         $failures[] = str_replace($root . '/', '', $file->getPathname());
     }
-
-    if (str_contains($source, "addExtensionRegistryFile('com_decarofinance')")
-        || str_contains($source, "useStyle('com_decarofinance.admin')")) {
-        $failures[] = str_replace($root . '/', '', $file->getPathname()) . ' (legacy registry path)';
-    }
 }
 
 if ($failures !== []) {
-    fwrite(STDERR, "ERROR: Finance administrator views do not consistently load runtime CSS:\n - " . implode("\n - ", $failures) . "\n");
+    fwrite(STDERR, "ERROR: Finance administrator views do not consistently load the CSS helper:\n - " . implode("\n - ", $failures) . "\n");
     exit(1);
 }
 
-fwrite(STDOUT, "Finance administrator asset loading contract OK\n");
+fwrite(STDOUT, "Finance administrator direct stylesheet contract OK\n");

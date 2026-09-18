@@ -1,0 +1,1 @@
+-- Finance 1.5.3: no database schema changes.
