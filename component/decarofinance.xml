@@ -17,9 +17,12 @@
       <menu view="payments">COM_DECAROFINANCE_PAYMENTS</menu>
       <menu view="accounts">COM_DECAROFINANCE_ACCOUNTS</menu>
       <menu view="transactions">COM_DECAROFINANCE_TRANSACTIONS</menu>
+      <menu view="transfers">COM_DECAROFINANCE_TRANSFERS</menu>
       <menu view="orders">COM_DECAROFINANCE_ORDERS</menu>
+      <menu view="cashchecks">COM_DECAROFINANCE_CASH_CHECKS</menu>
       <menu view="deposits">COM_DECAROFINANCE_DEPOSITS</menu>
       <menu view="budgets">COM_DECAROFINANCE_BUDGETS</menu>
+      <menu view="statements">COM_DECAROFINANCE_STATEMENTS</menu>
       <menu view="reports">COM_DECAROFINANCE_REPORTS</menu>
       <menu view="information">COM_DECAROFINANCE_INFORMATION</menu>
     </submenu>
