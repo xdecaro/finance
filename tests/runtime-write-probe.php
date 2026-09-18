@@ -372,6 +372,22 @@ if ($transferId1 < 1 || $transferId1 !== $transferId2) {
     fwrite(STDERR, "Transfer idempotency failed.\n");
     exit(1);
 }
+$conflictingTransferRejected = false;
+try {
+    $finance->transferBetweenAccounts([
+        'external_key' => 'ci:transfer:1',
+        'from_account_id' => $accountId1,
+        'to_account_id' => $cashAccountId,
+        'amount' => '101.00',
+        'currency' => 'EUR',
+    ], 1);
+} catch (\RuntimeException) {
+    $conflictingTransferRejected = true;
+}
+if (!$conflictingTransferRejected) {
+    fwrite(STDERR, "Conflicting transfer replay was accepted.\n");
+    exit(1);
+}
 if (abs($finance->getAccountBalance($accountId1) - 650.0) > 0.0001
     || abs($finance->getAccountBalance($cashAccountId) - 200.0) > 0.0001) {
     fwrite(STDERR, "Transfer did not preserve paired account balances.\n");
@@ -396,6 +412,29 @@ $cashCheckId = $finance->recordCashCheck([
 ], 8);
 if ($cashCheckId < 1) {
     fwrite(STDERR, "Cash check creation failed.\n");
+    exit(1);
+}
+$cashCheckReplay = $finance->recordCashCheck([
+    'external_key' => 'ci:cash-check:1',
+    'account_id' => $cashAccountId,
+    'actual_balance' => '195.00',
+], 8);
+if ($cashCheckReplay !== $cashCheckId) {
+    fwrite(STDERR, "Cash check replay was not idempotent.\n");
+    exit(1);
+}
+$conflictingCashCheckRejected = false;
+try {
+    $finance->recordCashCheck([
+        'external_key' => 'ci:cash-check:1',
+        'account_id' => $cashAccountId,
+        'actual_balance' => '194.00',
+    ], 8);
+} catch (\RuntimeException) {
+    $conflictingCashCheckRejected = true;
+}
+if (!$conflictingCashCheckRejected) {
+    fwrite(STDERR, "Conflicting cash-check replay was accepted.\n");
     exit(1);
 }
 $cashChecks = $query->listCashChecks();
