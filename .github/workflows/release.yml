@@ -39,6 +39,7 @@ jobs:
           php tests/core-integration-smoke.php
           php tests/database-write-contract.php
           php tests/component-service-resolution.php
+          php tests/admin-assets-contract.php
           python3 - <<'PY'
           import json, pathlib, xml.etree.ElementTree as ET
           v = pathlib.Path('VERSION').read_text().strip()
@@ -75,7 +76,7 @@ jobs:
             dist/*.zip \
             dist/SHA256SUMS.txt \
             --title "Finance by xdecaro ${VERSION}" \
-            --notes "Finance ${VERSION}: fixes Joomla administrator service resolution by obtaining Finance services from the booted component container. Dashboard, lists, reports, information and write actions no longer request component-local services from the global DI container. No schema or public API changes."
+            --notes "Finance ${VERSION}: fixes missing administrator styling by explicitly registering the Finance stylesheet with Joomla Web Asset Manager at runtime on every administrator view. This avoids dependence on extension asset-registry discovery while preserving the packaged asset manifest. No schema or public API changes."
 
       - name: Publish package checksum
         shell: bash
