@@ -21,6 +21,9 @@ $money=static fn($v)=>number_format((float)$v,2,',','.').' '.htmlspecialchars($c
     <section class="xdecaro-card xdf-kpi"><span><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_BALANCE'); ?></span><strong><?php echo $money($s['account_balance']); ?></strong></section>
     <section class="xdecaro-card xdf-kpi"><span><?php echo Text::_('COM_DECAROFINANCE_PENDING_ORDERS'); ?></span><strong><?php echo (int)$s['pending_orders']; ?></strong></section>
     <section class="xdecaro-card xdf-kpi"><span><?php echo Text::_('COM_DECAROFINANCE_COMMITTED_AMOUNT'); ?></span><strong><?php echo $money((float)$s['pending_orders_amount']+(float)$s['approved_orders_amount']); ?></strong></section>
+    <section class="xdecaro-card xdf-kpi"><span><?php echo Text::_('COM_DECAROFINANCE_CASH_VARIANCES'); ?></span><strong><?php echo (int)$s['cash_check_variances']; ?></strong></section>
+    <section class="xdecaro-card xdf-kpi"><span><?php echo Text::_('COM_DECAROFINANCE_CASH_VARIANCE_TOTAL'); ?></span><strong><?php echo $money($s['cash_variance_total']); ?></strong></section>
+    <section class="xdecaro-card xdf-kpi"><span><?php echo Text::_('COM_DECAROFINANCE_DRAFT_STATEMENTS'); ?></span><strong><?php echo (int)$s['draft_statements']; ?></strong></section>
   </div>
 
   <section class="xdecaro-card">
