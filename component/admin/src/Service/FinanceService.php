@@ -262,9 +262,13 @@ final class FinanceService
         [$sourceComponent,$sourceEntity,$sourceId]=$this->optionalReference($data,'source');
         [$counterpartyComponent,$counterpartyEntity,$counterpartyId]=$this->optionalReference($data,'counterparty');
         [$evidenceComponent,$evidenceEntity,$evidenceId]=$this->optionalReference($data,'evidence');
+        $category=$this->nullableToken($data['category'] ?? null,100,'category');
+        if ($category==='internal_transfer' && !($sourceComponent==='com_decarofinance' && $sourceEntity==='transfer' && $sourceId!==null)) {
+            throw new InvalidArgumentException('internal_transfer is reserved for Finance transfer pairs.');
+        }
         $row=(object)[
             'external_key'=>$externalKey,'account_id'=>$accountId?:null,'budget_line_id'=>$budgetLineId?:null,'direction'=>$direction,
-            'category'=>$this->nullableToken($data['category'] ?? null,100,'category'),'amount'=>$this->positiveAmount($data['amount'] ?? 0,'amount'),
+            'category'=>$category,'amount'=>$this->positiveAmount($data['amount'] ?? 0,'amount'),
             'currency'=>$currency,'occurred_at'=>$this->nullableDateTime($data['occurred_at'] ?? null) ?? Factory::getDate()->toSql(),
             'source_component'=>$sourceComponent,'source_entity'=>$sourceEntity,'source_id'=>$sourceId,
             'counterparty_component'=>$counterpartyComponent,'counterparty_entity'=>$counterpartyEntity,'counterparty_id'=>$counterpartyId,
