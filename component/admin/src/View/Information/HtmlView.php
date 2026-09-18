@@ -27,8 +27,8 @@ final class HtmlView extends BaseHtmlView
             $xml = @simplexml_load_file($manifest);
             $this->version = $xml !== false ? trim((string) $xml->version) : '';
         }
+        \Xdecaro\Component\Decarofinance\Administrator\Helper\UiHelper::loadAssets();
         $wa = $app->getDocument()->getWebAssetManager();
-        $wa->getRegistry()->addExtensionRegistryFile('com_decarofinance');
         try {
             $component = $app->bootComponent('com_decarofinance');
             if (!$component instanceof \Xdecaro\Component\Decarofinance\Administrator\Extension\DecarofinanceComponent) {
@@ -40,7 +40,6 @@ final class HtmlView extends BaseHtmlView
             $this->coreUiActive = $core->enableUi($wa);
         } catch (\Throwable) {
         }
-        $wa->useStyle('com_decarofinance.admin');
         parent::display($tpl);
     }
 }
