@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.3 — 2026-09-18
+- Fixed the remaining Finance administrator styling issue confirmed by browser-console diagnostics: the stylesheet file returned HTTP 200 and applied correctly when injected directly, while no Finance stylesheet link was present in the document head.
+- Finance administrator views now attach the verified `/media/com_decarofinance/css/admin.css` URL as a scoped stylesheet head link through the centralized `UiHelper`.
+- Removed the critical runtime dependency on Finance Web Asset Manager registration for the local administrator stylesheet while keeping `joomla.asset.json` packaged as metadata.
+- Added regression coverage for the direct stylesheet contract. No database schema or public API changes.
+
 ## 1.5.2 — 2026-09-18
 - Fixed missing Finance administrator styling on Joomla by loading the component stylesheet through an explicit runtime Web Asset Manager registration.
 - Added a centralized `UiHelper::loadAssets()` used by every Finance administrator view, avoiding reliance on extension asset-registry discovery for the critical admin stylesheet.
