@@ -55,7 +55,7 @@ jobs:
           assert "MINIMUM_CORE_VERSION = '1.4.0'" in source, 'Core minimum version mismatch'
           assert pathlib.Path(f'component/admin/sql/updates/mysql/{v}.sql').is_file(), 'schema version marker missing'
           finance = pathlib.Path('component/admin/src/Service/FinanceService.php').read_text()
-          for method in ['upsertObligation', 'upsertPayment', 'allocatePaymentIdempotent', 'createAccount', 'recordTransaction', 'createOrder', 'approveOrder', 'executeOrder', 'getBudgetLineAvailability', 'transferBetweenAccounts', 'recordCashCheck', 'createStatement', 'addStatementLine', 'finaliseStatement', 'approveStatement']:
+          for method in ['upsertObligation', 'upsertPayment', 'allocatePaymentIdempotent', 'recordPaymentAndAllocate', 'createAccount', 'recordTransaction', 'createOrder', 'approveOrder', 'executeOrder', 'getBudgetLineAvailability', 'transferBetweenAccounts', 'recordCashCheck', 'createStatement', 'addStatementLine', 'finaliseStatement', 'approveStatement']:
               assert f'function {method}' in finance, f'{method} API missing'
           PY
           ! grep -RniE 'DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE' component/admin/sql
@@ -76,7 +76,7 @@ jobs:
             dist/*.zip \
             dist/SHA256SUMS.txt \
             --title "Finance by xdecaro ${VERSION}" \
-            --notes "Finance ${VERSION}: fixes localized monetary input so administrator forms and public Finance APIs safely accept values such as 500,00, 1.234,56 and 1,234.56 in addition to standard dot-decimal input. No schema or public API changes."
+            --notes "Finance ${VERSION}: makes administrator payment creation plus obligation allocation atomic. If allocation is rejected, the payment insert is rolled back so no orphan payment remains. Adds the replay-safe recordPaymentAndAllocate service API; no schema changes."
 
       - name: Publish package checksum
         shell: bash
