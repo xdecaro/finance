@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.4 — 2026-09-19
+- Fixed administrator monetary inputs using locale decimal commas, including the Budget line error `Invalid planned_amount.` for values such as `500,00`.
+- Finance now normalizes common monetary formats safely before validation: `500`, `500.00`, `500,00`, `1.234,56` and `1,234.56`.
+- The normalization is centralized in the Finance service, so the same behavior applies consistently to budgets, accounts, obligations, payments, orders, transfers, transactions, cash checks and other monetary writes.
+- Ambiguous or malformed monetary strings remain rejected instead of being guessed silently.
+- Added real Joomla runtime coverage for comma-decimal and grouped monetary input on supported Joomla versions.
+- No database schema or public API changes.
+
 ## 1.5.3 — 2026-09-18
 - Fixed the remaining Finance administrator styling issue confirmed by browser-console diagnostics: the stylesheet file returned HTTP 200 and applied correctly when injected directly, while no Finance stylesheet link was present in the document head.
 - Finance administrator views now attach the verified `/media/com_decarofinance/css/admin.css` URL as a scoped stylesheet head link through the centralized `UiHelper`.
