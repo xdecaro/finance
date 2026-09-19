@@ -153,7 +153,38 @@ final class FinanceService
 
     public function allocatePayment(int $paymentId, int $obligationId, float|string $amount): void
     {
-        $this->allocatePaymentInternal($paymentId, $obligationId, $amount, false);
+        $this->allocatePaymentInternal($paymentId, $obligationId, $amount, false, true);
+    }
+
+    /**
+     * Record a payment and allocate it to an obligation atomically.
+     *
+     * This is the safe path for administrator forms that create a payment and
+     * immediately allocate the full amount. If allocation fails, the payment
+     * insert is rolled back as well so no orphan payment remains.
+     */
+    public function recordPaymentAndAllocate(array $data, int $obligationId, int $actorUserId = 0): int
+    {
+        if ($obligationId < 1) {
+            throw new InvalidArgumentException('A valid obligation is required.');
+        }
+
+        $this->db->transactionStart();
+        try {
+            $paymentId = $this->recordPayment($data, $actorUserId);
+            $this->allocatePaymentInternal(
+                $paymentId,
+                $obligationId,
+                $data['amount'] ?? 0,
+                true,
+                false
+            );
+            $this->db->transactionCommit();
+            return $paymentId;
+        } catch (Throwable $e) {
+            $this->db->transactionRollback();
+            throw $e;
+        }
     }
 
     /**
@@ -162,13 +193,13 @@ final class FinanceService
      */
     public function allocatePaymentIdempotent(int $paymentId, int $obligationId, float|string $amount): void
     {
-        $this->allocatePaymentInternal($paymentId, $obligationId, $amount, true);
+        $this->allocatePaymentInternal($paymentId, $obligationId, $amount, true, true);
     }
 
-    private function allocatePaymentInternal(int $paymentId, int $obligationId, float|string $amount, bool $idempotent): void
+    private function allocatePaymentInternal(int $paymentId, int $obligationId, float|string $amount, bool $idempotent, bool $manageTransaction): void
     {
         $amount=$this->positiveAmount($amount,'amount');
-        $this->db->transactionStart();
+        if ($manageTransaction) { $this->db->transactionStart(); }
         try {
             $payment=$this->getPayment($paymentId); $obligation=$this->getObligation($obligationId);
             if ($payment===null || $obligation===null) { throw new RuntimeException('Payment or obligation not found.'); }
@@ -179,7 +210,7 @@ final class FinanceService
                 if (!$idempotent) { throw new RuntimeException('Payment is already allocated to this obligation.'); }
                 if (abs($existing - $amount) > 0.0001) { throw new RuntimeException('Existing payment allocation has a different amount.'); }
                 $this->refreshObligationStatus($obligationId, $obligation);
-                $this->db->transactionCommit();
+                if ($manageTransaction) { $this->db->transactionCommit(); }
                 return;
             }
             $available=(float)$payment['amount']-$this->sumAllocationsForPayment($paymentId);
@@ -188,8 +219,11 @@ final class FinanceService
             $allocation=(object)['payment_id'=>$paymentId,'obligation_id'=>$obligationId,'amount'=>$amount];
             $this->db->insertObject('#__decarofinance_payment_allocations',$allocation);
             $this->refreshObligationStatus($obligationId, $obligation);
-            $this->db->transactionCommit();
-        } catch (Throwable $e) { $this->db->transactionRollback(); throw $e; }
+            if ($manageTransaction) { $this->db->transactionCommit(); }
+        } catch (Throwable $e) {
+            if ($manageTransaction) { $this->db->transactionRollback(); }
+            throw $e;
+        }
     }
 
     public function getOrCreateDepositAccount(string $ownerComponent, string $ownerEntity, int|string $ownerId, string $currency='EUR'): int
