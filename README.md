@@ -1,6 +1,6 @@
 # Finance by xdecaro
 
-Finance is the financial layer of the xdecaro Joomla ecosystem. Current version: **1.5.4**.
+Finance is the financial layer of the xdecaro Joomla ecosystem. Current version: **1.5.5**.
 
 ## Ownership
 Finance owns budgets, obligations, payments, payment allocations, deposit/caution accounts and append-only movements, financial accounts, financial transactions, internal transfers, cash checks, collection/payment orders, statement snapshots, due dates, budget coverage and financial audit metadata.
@@ -20,7 +20,7 @@ The source product owns *why* a charge, reimbursement, contribution or payment e
 
 External writes should provide `external_key` whenever a stable source key exists. Entity links use `component + entity + id`, so People, Organizations, Documents and other products remain optional.
 
-Replay-safe synchronization remains available through `upsertObligation()`, `upsertPayment()` and `allocatePaymentIdempotent()`. Allocated or closed financial history cannot be silently rewritten.
+Replay-safe synchronization remains available through `upsertObligation()`, `upsertPayment()` and `allocatePaymentIdempotent()`. Administrator flows that create a payment and immediately allocate it use `recordPaymentAndAllocate()`, so a rejected allocation rolls back the payment insert atomically and cannot leave an orphan payment. Allocated or closed financial history cannot be silently rewritten.
 
 ## Institutional accounting workflow
 Finance 1.4.0 introduced generic accounting workflow foundations:

@@ -59,6 +59,42 @@ if (!is_array($obligation) || ($obligation['status'] ?? '') !== 'partial') {
     exit(1);
 }
 
+$atomicObligationId = $finance->createObligation([
+    'external_key' => 'ci:atomic:obligation',
+    'kind' => 'atomic_payment_test',
+    'amount' => '10,00',
+    'currency' => 'EUR',
+], 1);
+$atomicPaymentId = $finance->recordPaymentAndAllocate([
+    'external_key' => 'ci:atomic:payment:ok',
+    'amount' => '10,00',
+    'currency' => 'EUR',
+    'method' => 'bank_transfer',
+], $atomicObligationId, 1);
+$atomicObligation = $finance->getObligation($atomicObligationId);
+if ($atomicPaymentId < 1 || !is_array($atomicObligation) || ($atomicObligation['status'] ?? '') !== 'paid') {
+    fwrite(STDERR, "Atomic payment-allocation did not settle the obligation.\n");
+    exit(1);
+}
+
+$paymentCountBeforeRejectedAllocation = count($component->getFinanceQueryService()->listPayments(500));
+$atomicOverpaymentRejected = false;
+try {
+    $finance->recordPaymentAndAllocate([
+        'external_key' => 'ci:atomic:payment:rejected',
+        'amount' => '1,00',
+        'currency' => 'EUR',
+        'method' => 'bank_transfer',
+    ], $atomicObligationId, 1);
+} catch (\RuntimeException) {
+    $atomicOverpaymentRejected = true;
+}
+$paymentCountAfterRejectedAllocation = count($component->getFinanceQueryService()->listPayments(500));
+if (!$atomicOverpaymentRejected || $paymentCountAfterRejectedAllocation !== $paymentCountBeforeRejectedAllocation) {
+    fwrite(STDERR, "Rejected payment allocation left an orphan payment row.\n");
+    exit(1);
+}
+
 $syncObligation = [
     'external_key' => 'ci:sync:obligation:1',
     'source_component' => 'com_example',

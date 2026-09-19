@@ -31,11 +31,14 @@ final class FinanceController extends BaseController
         $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
         try {
             $amount=$input->getString('amount');
-            $id=$this->service()->recordPayment([
+            $data=[
                 'external_key'=>$input->getString('external_key'),'payer_component'=>$input->getString('payer_component'),'payer_entity'=>$input->getString('payer_entity'),'payer_id'=>$input->getString('payer_id'),
                 'amount'=>$amount,'currency'=>$input->getString('currency','EUR'),'paid_at'=>$input->getString('paid_at'),'method'=>$input->getString('method'),'reference'=>$input->getString('reference')
-            ],$this->userId());
-            $obligationId=$input->getInt('obligation_id'); if ($obligationId>0) { $this->service()->allocatePayment($id,$obligationId,$amount); }
+            ];
+            $obligationId=$input->getInt('obligation_id');
+            $id=$obligationId>0
+                ? $this->service()->recordPaymentAndAllocate($data,$obligationId,$this->userId())
+                : $this->service()->recordPayment($data,$this->userId());
             $this->message(Text::sprintf('COM_DECAROFINANCE_PAYMENT_CREATED',$id),'message','payments');
         } catch (Throwable $e) { $this->message($e->getMessage(),'error','payments'); }
     }
