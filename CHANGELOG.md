@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.5 — 2026-09-19
+- Fixed a financial-integrity bug found during administrator testing: when a payment was created and its obligation allocation then failed, the payment row remained stored with zero allocation.
+- Added `recordPaymentAndAllocate()`, which records and allocates a payment in one database transaction.
+- Administrator payment forms now use the atomic path whenever an obligation is selected; if allocation fails, both the allocation and the new payment are rolled back.
+- Unallocated standalone payments remain supported when no obligation is selected.
+- Added real Joomla runtime coverage proving that an overpayment rejection does not leave an orphan payment record.
+- No database schema changes; the new service method is additive and backwards compatible.
+
 ## 1.5.4 — 2026-09-19
 - Fixed administrator monetary inputs using locale decimal commas, including the Budget line error `Invalid planned_amount.` for values such as `500,00`.
 - Finance now normalizes common monetary formats safely before validation: `500`, `500.00`, `500,00`, `1.234,56` and `1,234.56`.
