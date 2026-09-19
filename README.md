@@ -1,6 +1,6 @@
 # Finance by xdecaro
 
-Finance is the financial layer of the xdecaro Joomla ecosystem. Current version: **1.5.3**.
+Finance is the financial layer of the xdecaro Joomla ecosystem. Current version: **1.5.4**.
 
 ## Ownership
 Finance owns budgets, obligations, payments, payment allocations, deposit/caution accounts and append-only movements, financial accounts, financial transactions, internal transfers, cash checks, collection/payment orders, statement snapshots, due dates, budget coverage and financial audit metadata.
@@ -53,7 +53,7 @@ Core 1.4 is optional and supplies entity/relation references, shared UI and capa
 Documents can be referenced as supporting evidence without becoming a required dependency. Notifications and Tasks remain optional. Analytics integration is supplied by the bundled `xdecaroanalytics` plugin.
 
 ## Compatibility and security
-Target Joomla 4, 5 and 6 where technically possible, with PHP 8.1+. Administrator writes enforce server-side ACL and CSRF. SQL uses `#__`, bound queries or integer-cast identifiers, non-destructive updates and `utf8mb4` storage. Financial transaction and deposit ledgers are append-only through the public service: corrections should be represented by explicit new movements rather than destructive rewrites.
+Target Joomla 4, 5 and 6 where technically possible, with PHP 8.1+. Administrator writes enforce server-side ACL and CSRF. Monetary inputs are normalized centrally and accept both decimal point and decimal comma, including common grouped formats, before exact validation and storage. SQL uses `#__`, bound queries or integer-cast identifiers, non-destructive updates and `utf8mb4` storage. Financial transaction and deposit ledgers are append-only through the public service: corrections should be represented by explicit new movements rather than destructive rewrites.
 
 The package CI performs clean installation and runtime regression checks on supported Joomla branches without requiring optional xdecaro products. Administrator code resolves Finance services through the booted component API rather than Joomla's global DI container, preserving the component-local service-provider boundary. Finance administrator styling is attached through a centralized scoped head link to `/media/com_decarofinance/css/admin.css`, matching the path verified to load correctly on the target Joomla administrator.
 

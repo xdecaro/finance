@@ -76,7 +76,7 @@ jobs:
             dist/*.zip \
             dist/SHA256SUMS.txt \
             --title "Finance by xdecaro ${VERSION}" \
-            --notes "Finance ${VERSION}: fixes the remaining administrator CSS issue by attaching the proven working /media/com_decarofinance/css/admin.css stylesheet as a direct scoped head link on Finance administrator views. No schema or public API changes."
+            --notes "Finance ${VERSION}: fixes localized monetary input so administrator forms and public Finance APIs safely accept values such as 500,00, 1.234,56 and 1,234.56 in addition to standard dot-decimal input. No schema or public API changes."
 
       - name: Publish package checksum
         shell: bash

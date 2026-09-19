@@ -171,9 +171,24 @@ if (abs($finance->getDepositBalance($account1) - 475.0) > 0.0001) {
 }
 
 $budgetId = $finance->createBudget('CI Budget', '2026-01-01', '2026-12-31', 1);
-$lineId = $finance->addBudgetLine($budgetId, 'expense', 'CI Expense', '250.00');
+$lineId = $finance->addBudgetLine($budgetId, 'expense', 'CI Expense', '250,00');
 if ($budgetId < 1 || $lineId < 1) {
     fwrite(STDERR, "Budget writes failed.\n");
+    exit(1);
+}
+
+$commaObligationId = $finance->createObligation([
+    'external_key' => 'ci:obligation:comma',
+    'source_component' => 'com_example',
+    'source_entity' => 'entry',
+    'source_id' => 'comma',
+    'kind' => 'localized_amount',
+    'amount' => '1.234,56',
+    'currency' => 'EUR',
+], 1);
+$commaObligation = $finance->getObligation($commaObligationId);
+if (!is_array($commaObligation) || abs((float) $commaObligation['amount'] - 1234.56) > 0.0001) {
+    fwrite(STDERR, "Localized monetary input was not normalised correctly.\n");
     exit(1);
 }
 
@@ -186,7 +201,7 @@ $accountId1 = $finance->createAccount([
     'account_type' => 'bank',
     'identifier' => 'CI-IBAN',
     'currency' => 'EUR',
-    'opening_balance' => '1000.00',
+    'opening_balance' => '1.000,00',
 ], 1);
 $accountId2 = $finance->createAccount([
     'external_key' => 'ci:account:operations',
@@ -210,7 +225,7 @@ $institutionalBudgetId = $finance->createBudget('CI Institutional Budget', '2026
     'owner_id' => 'rome',
     'currency' => 'EUR',
 ]);
-$expenseLineId = $finance->addBudgetLine($institutionalBudgetId, 'expense', 'Institutional operations', '1000.00', [
+$expenseLineId = $finance->addBudgetLine($institutionalBudgetId, 'expense', 'Institutional operations', '1.000,00', [
     'code' => 'OPS',
     'category' => 'operations',
 ]);

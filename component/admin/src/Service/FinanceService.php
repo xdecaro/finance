@@ -698,7 +698,81 @@ final class FinanceService
     private function positiveAmount(mixed $v,string $name): float { $n=$this->number($v,$name); if ($n<=0) throw new InvalidArgumentException($name.' must be greater than zero.'); return round($n,2); }
     private function nonZeroAmount(mixed $v,string $name): float { $n=$this->number($v,$name); if (abs($n)<0.005) throw new InvalidArgumentException($name.' must be non-zero.'); return round($n,2); }
     private function nonNegativeAmount(mixed $v,string $name): float { $n=$this->number($v,$name); if ($n<0) throw new InvalidArgumentException($name.' must not be negative.'); return round($n,2); }
-    private function number(mixed $v,string $name): float { if (!is_numeric($v)) throw new InvalidArgumentException('Invalid '.$name.'.'); return (float)$v; }
+    private function number(mixed $v,string $name): float
+    {
+        if (is_int($v) || is_float($v)) {
+            $number=(float)$v;
+            if (!is_finite($number)) { throw new InvalidArgumentException('Invalid '.$name.'.'); }
+            return $number;
+        }
+
+        $raw=trim((string)$v);
+        $raw=str_replace(["\u{00A0}","\u{202F}"," "], '', $raw);
+        if ($raw==='' || !preg_match('/^[+-]?\d[\d.,]*$/u',$raw)) {
+            throw new InvalidArgumentException('Invalid '.$name.'.');
+        }
+
+        $sign='';
+        if ($raw[0]==='+' || $raw[0]==='-') {
+            $sign=$raw[0];
+            $raw=substr($raw,1);
+        }
+
+        $commaCount=substr_count($raw,',');
+        $dotCount=substr_count($raw,'.');
+        $normalised=$raw;
+
+        if ($commaCount>0 && $dotCount>0) {
+            $lastComma=strrpos($raw,',');
+            $lastDot=strrpos($raw,'.');
+            $decimalSeparator=$lastComma>$lastDot ? ',' : '.';
+            $groupSeparator=$decimalSeparator===',' ? '.' : ',';
+
+            if (substr_count($raw,$decimalSeparator)!==1) {
+                throw new InvalidArgumentException('Invalid '.$name.'.');
+            }
+
+            [$integerPart,$decimalPart]=explode($decimalSeparator,$raw,2);
+            if (!preg_match('/^\d{1,3}(?:'.preg_quote($groupSeparator,'/').'\d{3})*$/',$integerPart)
+                || !preg_match('/^\d{1,2}$/',$decimalPart)) {
+                throw new InvalidArgumentException('Invalid '.$name.'.');
+            }
+
+            $normalised=str_replace($groupSeparator,'',$integerPart).'.'.$decimalPart;
+        } elseif ($commaCount>0 || $dotCount>0) {
+            $separator=$commaCount>0 ? ',' : '.';
+            $count=$commaCount>0 ? $commaCount : $dotCount;
+
+            if ($count===1) {
+                [$integerPart,$fractionOrGroup]=explode($separator,$raw,2);
+                if ($integerPart==='' || $fractionOrGroup==='') {
+                    throw new InvalidArgumentException('Invalid '.$name.'.');
+                }
+
+                if (preg_match('/^\d{1,2}$/',$fractionOrGroup)) {
+                    $normalised=$integerPart.'.'.$fractionOrGroup;
+                } elseif (preg_match('/^\d{3}$/',$fractionOrGroup)) {
+                    $normalised=$integerPart.$fractionOrGroup;
+                } else {
+                    throw new InvalidArgumentException('Invalid '.$name.'.');
+                }
+            } else {
+                if (!preg_match('/^\d{1,3}(?:'.preg_quote($separator,'/').'\d{3})+$/',$raw)) {
+                    throw new InvalidArgumentException('Invalid '.$name.'.');
+                }
+                $normalised=str_replace($separator,'',$raw);
+            }
+        }
+
+        $normalised=$sign.$normalised;
+        if (!preg_match('/^[+-]?\d+(?:\.\d{1,2})?$/',$normalised)) {
+            throw new InvalidArgumentException('Invalid '.$name.'.');
+        }
+
+        $number=(float)$normalised;
+        if (!is_finite($number)) { throw new InvalidArgumentException('Invalid '.$name.'.'); }
+        return $number;
+    }
     private function nullableText(mixed $v,int $max): ?string { $v=trim((string)$v); if ($v==='') return null; if (mb_strlen($v)>$max) $v=mb_substr($v,0,$max); return $v; }
     private function nullableDate(mixed $v): ?string { $v=trim((string)$v); if ($v==='') return null; $d=\DateTimeImmutable::createFromFormat('!Y-m-d',$v); if (!$d||$d->format('Y-m-d')!==$v) throw new InvalidArgumentException('Invalid date.'); return $v; }
     private function nullableDateTime(mixed $v): ?string { $v=trim((string)$v); if ($v==='') return null; try { return Factory::getDate($v)->toSql(); } catch (Throwable) { throw new InvalidArgumentException('Invalid date/time.'); } }
