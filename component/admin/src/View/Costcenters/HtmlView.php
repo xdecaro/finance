@@ -28,8 +28,14 @@ final class HtmlView extends BaseHtmlView
             throw new \RuntimeException('Finance component is unavailable.');
         }
 
+        $references=$component->getReferenceLookupService();
         $this->items=$component->getFinanceQueryService()->listCostCenters();
-        $this->organizations=$component->getReferenceLookupService()->listOrganizations();
+        foreach ($this->items as &$item) {
+            $item['owner_label']=$references->label($item['owner_component']??null,$item['owner_entity']??null,$item['owner_id']??null);
+            $item['source_label']=$references->label($item['source_component']??null,$item['source_entity']??null,$item['source_id']??null);
+        }
+        unset($item);
+        $this->organizations=$references->listOrganizations();
         parent::display($tpl);
     }
 }
