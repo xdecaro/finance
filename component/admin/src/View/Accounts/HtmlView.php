@@ -10,6 +10,7 @@ use Joomla\CMS\Toolbar\ToolbarHelper;
 final class HtmlView extends BaseHtmlView
 {
     public array $items=[];
+    public array $organizations=[];
 
     public function display($tpl=null): void
     {
@@ -19,7 +20,13 @@ final class HtmlView extends BaseHtmlView
         \Xdecaro\Component\Decarofinance\Administrator\Helper\UiHelper::loadAssets();
         $component=$app->bootComponent('com_decarofinance');
         if (!$component instanceof \Xdecaro\Component\Decarofinance\Administrator\Extension\DecarofinanceComponent) { throw new \RuntimeException('Finance component is unavailable.'); }
+        $references=$component->getReferenceLookupService();
         $this->items=$component->getFinanceQueryService()->listAccounts();
+        foreach ($this->items as &$item) {
+            $item['owner_label']=$references->label($item['owner_component']??null,$item['owner_entity']??null,$item['owner_id']??null);
+        }
+        unset($item);
+        $this->organizations=$references->listOrganizations();
         parent::display($tpl);
     }
 }
