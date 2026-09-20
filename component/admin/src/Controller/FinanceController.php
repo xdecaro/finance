@@ -10,6 +10,7 @@ use Joomla\CMS\Router\Route;
 use Throwable;
 use Xdecaro\Component\Decarofinance\Administrator\Extension\DecarofinanceComponent;
 use Xdecaro\Component\Decarofinance\Administrator\Service\FinanceService;
+use Xdecaro\Component\Decarofinance\Administrator\Service\ReferenceLookupService;
 
 final class FinanceController extends BaseController
 {
@@ -17,9 +18,10 @@ final class FinanceController extends BaseController
     {
         $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
         try {
+            [$debtorComponent,$debtorEntity,$debtorId]=$this->selectedParty('debtor_ref','debtor');
             $id=$this->service()->createObligation([
                 'external_key'=>$input->getString('external_key'),'source_component'=>$input->getString('source_component'),'source_entity'=>$input->getString('source_entity'),'source_id'=>$input->getString('source_id'),
-                'debtor_component'=>$input->getString('debtor_component'),'debtor_entity'=>$input->getString('debtor_entity'),'debtor_id'=>$input->getString('debtor_id'),
+                'debtor_component'=>$debtorComponent,'debtor_entity'=>$debtorEntity,'debtor_id'=>$debtorId,
                 'kind'=>$input->getString('kind'),'description'=>$input->getString('description'),'amount'=>$input->getString('amount'),'currency'=>$input->getString('currency','EUR'),'due_date'=>$input->getString('due_date'),
             ],$this->userId());
             $this->message(Text::sprintf('COM_DECAROFINANCE_OBLIGATION_CREATED',$id),'message','obligations');
@@ -31,8 +33,9 @@ final class FinanceController extends BaseController
         $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
         try {
             $amount=$input->getString('amount');
+            [$payerComponent,$payerEntity,$payerId]=$this->selectedParty('payer_ref','payer');
             $data=[
-                'external_key'=>$input->getString('external_key'),'payer_component'=>$input->getString('payer_component'),'payer_entity'=>$input->getString('payer_entity'),'payer_id'=>$input->getString('payer_id'),
+                'external_key'=>$input->getString('external_key'),'payer_component'=>$payerComponent,'payer_entity'=>$payerEntity,'payer_id'=>$payerId,
                 'amount'=>$amount,'currency'=>$input->getString('currency','EUR'),'paid_at'=>$input->getString('paid_at'),'method'=>$input->getString('method'),'reference'=>$input->getString('reference')
             ];
             $obligationId=$input->getInt('obligation_id');
@@ -47,7 +50,9 @@ final class FinanceController extends BaseController
     {
         $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
         try {
-            $account=$this->service()->getOrCreateDepositAccount($input->getString('owner_component'),$input->getString('owner_entity'),$input->getString('owner_id'),$input->getString('currency','EUR'));
+            [$ownerComponent,$ownerEntity,$ownerId]=$this->selectedParty('owner_ref','owner',true);
+            if ($ownerComponent===null || $ownerEntity===null || $ownerId===null) { throw new \InvalidArgumentException(Text::_('COM_DECAROFINANCE_OWNER_REQUIRED')); }
+            $account=$this->service()->getOrCreateDepositAccount($ownerComponent,$ownerEntity,$ownerId,$input->getString('currency','EUR'));
             $id=$this->service()->postDepositMovement($account,$input->getString('movement_type'),$input->getString('amount'),[
                 'external_key'=>$input->getString('external_key'),'description'=>$input->getString('description'),
                 'source_component'=>$input->getString('source_component'),'source_entity'=>$input->getString('source_entity'),'source_id'=>$input->getString('source_id')
@@ -60,15 +65,16 @@ final class FinanceController extends BaseController
     {
         $this->checkToken(); $this->authorise('core.create');
         try {
+            [$ownerComponent,$ownerEntity,$ownerId]=$this->selectedOrganization('owner_organization_uuid','owner');
             $id=$this->service()->createBudget(
                 $this->input->getString('title'),
                 $this->input->getString('period_start'),
                 $this->input->getString('period_end'),
                 $this->userId(),
                 [
-                    'owner_component'=>$this->input->getString('owner_component'),
-                    'owner_entity'=>$this->input->getString('owner_entity'),
-                    'owner_id'=>$this->input->getString('owner_id'),
+                    'owner_component'=>$ownerComponent,
+                    'owner_entity'=>$ownerEntity,
+                    'owner_id'=>$ownerId,
                     'currency'=>$this->input->getString('currency','EUR'),
                 ]
             );
@@ -85,19 +91,34 @@ final class FinanceController extends BaseController
                 $this->input->getString('kind'),
                 $this->input->getString('title'),
                 $this->input->getString('planned_amount'),
-                ['code'=>$this->input->getString('code'),'category'=>$this->input->getString('category')]
+                ['code'=>$this->input->getString('code'),'category'=>$this->input->getString('category'),'cost_center_id'=>$this->input->getInt('cost_center_id')]
             );
             $this->message(Text::_('COM_DECAROFINANCE_BUDGET_LINE_CREATED'),'message','budgets');
         } catch (Throwable $e) { $this->message($e->getMessage(),'error','budgets'); }
+    }
+
+    public function createCostCenter(): void
+    {
+        $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
+        try {
+            [$ownerComponent,$ownerEntity,$ownerId]=$this->selectedOrganization('owner_organization_uuid','owner');
+            $id=$this->service()->createCostCenter([
+                'code'=>$input->getString('code'),
+                'title'=>$input->getString('title'),
+                'owner_component'=>$ownerComponent,'owner_entity'=>$ownerEntity,'owner_id'=>$ownerId,
+            ],$this->userId());
+            $this->message(Text::sprintf('COM_DECAROFINANCE_COST_CENTER_CREATED',$id),'message','costcenters');
+        } catch (Throwable $e) { $this->message($e->getMessage(),'error','costcenters'); }
     }
 
     public function createAccount(): void
     {
         $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
         try {
+            [$ownerComponent,$ownerEntity,$ownerId]=$this->selectedOrganization('owner_organization_uuid','owner');
             $id=$this->service()->createAccount([
                 'external_key'=>$input->getString('external_key'),'code'=>$input->getString('code'),
-                'owner_component'=>$input->getString('owner_component'),'owner_entity'=>$input->getString('owner_entity'),'owner_id'=>$input->getString('owner_id'),
+                'owner_component'=>$ownerComponent,'owner_entity'=>$ownerEntity,'owner_id'=>$ownerId,
                 'name'=>$input->getString('name'),'account_type'=>$input->getString('account_type','bank'),'identifier'=>$input->getString('identifier'),
                 'currency'=>$input->getString('currency','EUR'),'opening_balance'=>$input->getString('opening_balance','0'),
             ],$this->userId());
@@ -109,12 +130,13 @@ final class FinanceController extends BaseController
     {
         $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
         try {
+            [$counterpartyComponent,$counterpartyEntity,$counterpartyId]=$this->selectedParty('counterparty_ref','counterparty');
             $id=$this->service()->recordTransaction([
-                'external_key'=>$input->getString('external_key'),'account_id'=>$input->getInt('account_id'),'budget_line_id'=>$input->getInt('budget_line_id'),
+                'external_key'=>$input->getString('external_key'),'account_id'=>$input->getInt('account_id'),'budget_line_id'=>$input->getInt('budget_line_id'),'cost_center_id'=>$input->getInt('cost_center_id'),
                 'direction'=>$input->getString('direction'),'category'=>$input->getString('category'),'amount'=>$input->getString('amount'),'currency'=>$input->getString('currency','EUR'),
                 'occurred_at'=>$input->getString('occurred_at'),'description'=>$input->getString('description'),
                 'source_component'=>$input->getString('source_component'),'source_entity'=>$input->getString('source_entity'),'source_id'=>$input->getString('source_id'),
-                'counterparty_component'=>$input->getString('counterparty_component'),'counterparty_entity'=>$input->getString('counterparty_entity'),'counterparty_id'=>$input->getString('counterparty_id'),
+                'counterparty_component'=>$counterpartyComponent,'counterparty_entity'=>$counterpartyEntity,'counterparty_id'=>$counterpartyId,
                 'evidence_component'=>$input->getString('evidence_component'),'evidence_entity'=>$input->getString('evidence_entity'),'evidence_id'=>$input->getString('evidence_id'),
             ],$this->userId());
             $this->message(Text::sprintf('COM_DECAROFINANCE_TRANSACTION_CREATED',$id),'message','transactions');
@@ -125,10 +147,12 @@ final class FinanceController extends BaseController
     {
         $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
         try {
+            [$ownerComponent,$ownerEntity,$ownerId]=$this->selectedOrganization('owner_organization_uuid','owner');
+            [$counterpartyComponent,$counterpartyEntity,$counterpartyId]=$this->selectedParty('counterparty_ref','counterparty');
             $id=$this->service()->createOrder([
-                'external_key'=>$input->getString('external_key'),'direction'=>$input->getString('direction'),'account_id'=>$input->getInt('account_id'),'budget_line_id'=>$input->getInt('budget_line_id'),
-                'owner_component'=>$input->getString('owner_component'),'owner_entity'=>$input->getString('owner_entity'),'owner_id'=>$input->getString('owner_id'),
-                'counterparty_component'=>$input->getString('counterparty_component'),'counterparty_entity'=>$input->getString('counterparty_entity'),'counterparty_id'=>$input->getString('counterparty_id'),
+                'external_key'=>$input->getString('external_key'),'direction'=>$input->getString('direction'),'account_id'=>$input->getInt('account_id'),'budget_line_id'=>$input->getInt('budget_line_id'),'cost_center_id'=>$input->getInt('cost_center_id'),
+                'owner_component'=>$ownerComponent,'owner_entity'=>$ownerEntity,'owner_id'=>$ownerId,
+                'counterparty_component'=>$counterpartyComponent,'counterparty_entity'=>$counterpartyEntity,'counterparty_id'=>$counterpartyId,
                 'category'=>$input->getString('category'),'description'=>$input->getString('description'),'amount'=>$input->getString('amount'),'currency'=>$input->getString('currency','EUR'),
                 'due_date'=>$input->getString('due_date'),'required_approvals'=>$input->getInt('required_approvals',2),
                 'source_component'=>$input->getString('source_component'),'source_entity'=>$input->getString('source_entity'),'source_id'=>$input->getString('source_id'),
@@ -195,10 +219,11 @@ final class FinanceController extends BaseController
     {
         $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
         try {
+            [$ownerComponent,$ownerEntity,$ownerId]=$this->selectedOrganization('owner_organization_uuid','owner');
             $id=$this->service()->createStatement([
                 'external_key'=>$input->getString('external_key'),'statement_type'=>$input->getString('statement_type'),'title'=>$input->getString('title'),
                 'period_start'=>$input->getString('period_start'),'period_end'=>$input->getString('period_end'),'currency'=>$input->getString('currency','EUR'),
-                'owner_component'=>$input->getString('owner_component'),'owner_entity'=>$input->getString('owner_entity'),'owner_id'=>$input->getString('owner_id'),
+                'owner_component'=>$ownerComponent,'owner_entity'=>$ownerEntity,'owner_id'=>$ownerId,
                 'source_component'=>$input->getString('source_component'),'source_entity'=>$input->getString('source_entity'),'source_id'=>$input->getString('source_id'),
                 'document_component'=>$input->getString('document_component'),'document_entity'=>$input->getString('document_entity'),'document_id'=>$input->getString('document_id'),
             ],$this->userId());
@@ -235,6 +260,43 @@ final class FinanceController extends BaseController
             $this->service()->approveStatement($this->input->getInt('statement_id'),$this->userId());
             $this->message(Text::_('COM_DECAROFINANCE_STATEMENT_APPROVED'),'message','statements');
         } catch (Throwable $e) { $this->message($e->getMessage(),'error','statements'); }
+    }
+
+    private function references(): ReferenceLookupService
+    {
+        $component=Factory::getApplication()->bootComponent('com_decarofinance');
+        if (!$component instanceof DecarofinanceComponent) {
+            throw new \RuntimeException('Finance component is unavailable.');
+        }
+        return $component->getReferenceLookupService();
+    }
+
+    private function selectedOrganization(string $selectionField,string $legacyPrefix): array
+    {
+        $selected=$this->input->getString($selectionField);
+        if ($selected!=='') { return $this->references()->organizationReference($selected); }
+
+        $c=$this->input->getString($legacyPrefix.'_component');
+        $e=$this->input->getString($legacyPrefix.'_entity');
+        $i=$this->input->getString($legacyPrefix.'_id');
+        return ($c==='' && $e==='' && $i==='') ? [null,null,null] : [$c,$e,$i];
+    }
+
+    private function selectedParty(string $selectionField,string $legacyPrefix,bool $organizationOnly=false): array
+    {
+        $selected=$this->input->getString($selectionField);
+        if ($selected!=='') {
+            $reference=$this->references()->partyReference($selected);
+            if ($organizationOnly && $reference[0]!==ReferenceLookupService::ORGANIZATIONS) {
+                throw new \InvalidArgumentException(Text::_('COM_DECAROFINANCE_OWNER_MUST_BE_ORGANIZATION'));
+            }
+            return $reference;
+        }
+
+        $c=$this->input->getString($legacyPrefix.'_component');
+        $e=$this->input->getString($legacyPrefix.'_entity');
+        $i=$this->input->getString($legacyPrefix.'_id');
+        return ($c==='' && $e==='' && $i==='') ? [null,null,null] : [$c,$e,$i];
     }
 
     private function service(): FinanceService
