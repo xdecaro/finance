@@ -217,6 +217,7 @@ final class HtmlView extends BaseHtmlView
 
         $extensionId=(int)$package->extension_id;
         try {
+            $location=self::UPDATE_SITE_URL;
             $q=$db->getQuery(true)
                 ->select(['s.enabled','s.last_check_timestamp'])
                 ->from($db->quoteName('#__update_sites','s'))
@@ -224,7 +225,7 @@ final class HtmlView extends BaseHtmlView
                 ->where('m.extension_id = :id')
                 ->where('s.location = :location')
                 ->bind(':id',$extensionId,ParameterType::INTEGER)
-                ->bind(':location',$resultUrl=self::UPDATE_SITE_URL);
+                ->bind(':location',$location);
             $site=$db->setQuery($q,0,1)->loadObject();
             if($site) {
                 $result['site_enabled']=(int)$site->enabled===1;
