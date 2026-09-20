@@ -50,7 +50,7 @@ final class FinanceController extends BaseController
     {
         $this->checkToken(); $this->authorise('core.create'); $input=$this->input;
         try {
-            [$ownerComponent,$ownerEntity,$ownerId]=$this->selectedParty('owner_ref','owner',true);
+            [$ownerComponent,$ownerEntity,$ownerId]=$this->selectedParty('owner_ref','owner');
             if ($ownerComponent===null || $ownerEntity===null || $ownerId===null) { throw new \InvalidArgumentException(Text::_('COM_DECAROFINANCE_OWNER_REQUIRED')); }
             $account=$this->service()->getOrCreateDepositAccount($ownerComponent,$ownerEntity,$ownerId,$input->getString('currency','EUR'));
             $id=$this->service()->postDepositMovement($account,$input->getString('movement_type'),$input->getString('amount'),[
