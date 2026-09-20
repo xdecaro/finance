@@ -24,6 +24,7 @@ $money=static fn($v)=>number_format((float)$v,2,',','.').' '.$currency;
     <a class="xdecaro-card xdf-action" href="<?php echo Route::_('index.php?option=com_decarofinance&view=statements'); ?>"><?php echo Text::_('COM_DECAROFINANCE_STATEMENTS'); ?></a>
     <a class="xdecaro-card xdf-action" href="<?php echo Route::_('index.php?option=com_decarofinance&view=deposits'); ?>"><?php echo Text::_('COM_DECAROFINANCE_DEPOSITS'); ?></a>
     <a class="xdecaro-card xdf-action" href="<?php echo Route::_('index.php?option=com_decarofinance&view=budgets'); ?>"><?php echo Text::_('COM_DECAROFINANCE_BUDGETS'); ?></a>
+    <a class="xdecaro-card xdf-action" href="<?php echo Route::_('index.php?option=com_decarofinance&view=costcenters'); ?>"><?php echo Text::_('COM_DECAROFINANCE_COST_CENTERS'); ?></a>
     <a class="xdecaro-card xdf-action" href="<?php echo Route::_('index.php?option=com_decarofinance&view=reports'); ?>"><?php echo Text::_('COM_DECAROFINANCE_REPORTS'); ?></a>
   </div>
 </div>
