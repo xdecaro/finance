@@ -23,7 +23,7 @@ final class UiHelper
             $timezone=(string)($user->getParam('timezone') ?: $app->get('offset','UTC'));
             $date=Factory::getDate($value,'UTC');
             $date->setTimezone(new DateTimeZone($timezone));
-            return $date->format($format,true);
+            return $date->format($format);
         } catch (Throwable) {
             return $value;
         }
