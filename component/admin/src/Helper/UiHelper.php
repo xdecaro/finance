@@ -5,10 +5,29 @@ defined('_JEXEC') or die;
 
 use Joomla\CMS\Factory;
 use Joomla\CMS\Uri\Uri;
+use DateTimeZone;
+use Throwable;
 
 final class UiHelper
 {
-    private const VERSION = '1.5.3';
+    private const VERSION = '1.6.0';
+
+    public static function formatDateTime(?string $value, string $format='Y-m-d H:i:s'): string
+    {
+        $value=trim((string)$value);
+        if ($value==='') { return ''; }
+
+        try {
+            $app=Factory::getApplication();
+            $user=$app->getIdentity();
+            $timezone=(string)($user->getParam('timezone') ?: $app->get('offset','UTC'));
+            $date=Factory::getDate($value,'UTC');
+            $date->setTimezone(new DateTimeZone($timezone));
+            return $date->format($format,true);
+        } catch (Throwable) {
+            return $value;
+        }
+    }
 
     public static function loadAssets(): void
     {
