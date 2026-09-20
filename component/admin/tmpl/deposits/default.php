@@ -11,12 +11,21 @@ use Joomla\CMS\Router\Route;
 <div class="xdecaro-card__body">
 <form action="<?php echo Route::_('index.php?option=com_decarofinance&task=finance.depositMovement'); ?>" method="post" class="xdf-form-grid">
 <label class="xdf-span-2"><?php echo Text::_('COM_DECAROFINANCE_OWNER'); ?>
-<select class="form-select" name="owner_ref" required>
+<select class="form-select" name="owner_ref">
 <option value=""><?php echo Text::_('JSELECT'); ?></option>
 <optgroup label="<?php echo Text::_('COM_DECAROFINANCE_ORGANIZATIONS'); ?>"><?php foreach($this->organizations as $organization): ?><option value="organization:<?php echo htmlspecialchars((string)$organization['uuid'],ENT_QUOTES,'UTF-8'); ?>"><?php echo htmlspecialchars((string)$organization['name'],ENT_QUOTES,'UTF-8'); ?></option><?php endforeach; ?></optgroup>
 <optgroup label="<?php echo Text::_('COM_DECAROFINANCE_PEOPLE'); ?>"><?php foreach($this->people as $person): ?><option value="person:<?php echo htmlspecialchars((string)$person['uuid'],ENT_QUOTES,'UTF-8'); ?>"><?php echo htmlspecialchars((string)$person['display_name'],ENT_QUOTES,'UTF-8'); ?></option><?php endforeach; ?></optgroup>
 </select>
 </label>
+<details class="xdf-span-2 xdf-advanced">
+<summary><?php echo Text::_('COM_DECAROFINANCE_ADVANCED_OWNER_REFERENCE'); ?></summary>
+<div class="xdf-form-grid">
+<label><?php echo Text::_('COM_DECAROFINANCE_OWNER_COMPONENT'); ?><input class="form-control" name="owner_component" placeholder="com_xxx"></label>
+<label><?php echo Text::_('COM_DECAROFINANCE_OWNER_ENTITY'); ?><input class="form-control" name="owner_entity" placeholder="team / organization / person"></label>
+<label class="xdf-span-2"><?php echo Text::_('COM_DECAROFINANCE_OWNER_ID'); ?><input class="form-control" name="owner_id"></label>
+</div>
+<div class="form-text"><?php echo Text::_('COM_DECAROFINANCE_ADVANCED_OWNER_HELP'); ?></div>
+</details>
 <label><?php echo Text::_('COM_DECAROFINANCE_CURRENCY'); ?><input class="form-control" name="currency" value="EUR" required maxlength="3"></label>
 <label><?php echo Text::_('COM_DECAROFINANCE_MOVEMENT_TYPE'); ?>
 <select class="form-select" name="movement_type">
