@@ -26,7 +26,7 @@ final class FinanceService
 
     public function createObligation(array $data, int $actorUserId = 0): int
     {
-        $externalKey = $this->externalKey($data['external_key'] ?? null);
+        $externalKey = $this->externalKeyOrGenerated($data['external_key'] ?? null, 'obligation');
         if ($externalKey !== null) {
             $existing = $this->findExternal('#__decarofinance_obligations', $externalKey);
             if ($existing > 0) { return $existing; }
@@ -107,7 +107,7 @@ final class FinanceService
 
     public function recordPayment(array $data, int $actorUserId = 0): int
     {
-        $externalKey=$this->externalKey($data['external_key'] ?? null);
+        $externalKey=$this->externalKeyOrGenerated($data['external_key'] ?? null,'payment');
         if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_payments',$externalKey); if ($existing>0) { return $existing; } }
         $amount=$this->positiveAmount($data['amount'] ?? 0,'amount'); $currency=$this->currency($data['currency'] ?? 'EUR');
         [$payerComponent,$payerEntity,$payerId]=$this->optionalReference($data,'payer');
@@ -241,7 +241,7 @@ final class FinanceService
     {
         if ($accountId<1) { throw new InvalidArgumentException('Invalid deposit account.'); }
         $movementType=strtolower(trim($movementType)); if (!in_array($movementType,self::DEPOSIT_TYPES,true)) { throw new InvalidArgumentException('Invalid deposit movement type.'); }
-        $amount=$this->nonZeroAmount($amount,'amount'); $externalKey=$this->externalKey($meta['external_key'] ?? null);
+        $amount=$this->nonZeroAmount($amount,'amount'); $externalKey=$this->externalKeyOrGenerated($meta['external_key'] ?? null,'deposit');
         if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_deposit_movements',$externalKey); if ($existing>0) { return $existing; } }
         [$sourceComponent,$sourceEntity,$sourceId]=$this->optionalReference($meta,'source');
         $row=(object)['account_id'=>$accountId,'external_key'=>$externalKey,'movement_type'=>$movementType,'amount'=>$amount,'description'=>$this->nullableText($meta['description'] ?? null,500),'source_component'=>$sourceComponent,'source_entity'=>$sourceEntity,'source_id'=>$sourceId,'created'=>Factory::getDate()->toSql(),'created_by'=>max(0,$actorUserId)];
@@ -255,9 +255,49 @@ final class FinanceService
         $id=$accountId; $q=$this->db->getQuery(true)->select('COALESCE(SUM('.$this->db->quoteName('amount').'),0)')->from($this->db->quoteName('#__decarofinance_deposit_movements'))->where($this->db->quoteName('account_id').' = :id')->bind(':id',$id,ParameterType::INTEGER); return (float)$this->db->setQuery($q)->loadResult();
     }
 
+    public function createCostCenter(array $data, int $actorUserId=0): int
+    {
+        [$ownerComponent,$ownerEntity,$ownerId]=$this->optionalReference($data,'owner');
+        [$sourceComponent,$sourceEntity,$sourceId]=$this->optionalReference($data,'source');
+        $externalKey=$this->externalKey($data['external_key'] ?? null);
+        if ($externalKey===null && $sourceComponent!==null && $sourceEntity!==null && $sourceId!==null) {
+            $externalKey='finance:costcenter:source:'.substr(hash('sha256',$sourceComponent.'|'.$sourceEntity.'|'.$sourceId),0,40);
+        }
+        $externalKey=$externalKey ?? $this->generatedExternalKey('costcenter');
+
+        $existing=$this->findExternal('#__decarofinance_cost_centers',$externalKey);
+        if ($existing>0) { return $existing; }
+
+        $title=trim((string)($data['title'] ?? ''));
+        if ($title==='' || mb_strlen($title)>255) { throw new InvalidArgumentException('Cost center title is required.'); }
+
+        $row=(object)[
+            'external_key'=>$externalKey,
+            'code'=>$this->nullableToken($data['code'] ?? null,64,'code'),
+            'title'=>$title,
+            'owner_component'=>$ownerComponent,'owner_entity'=>$ownerEntity,'owner_id'=>$ownerId,
+            'source_component'=>$sourceComponent,'source_entity'=>$sourceEntity,'source_id'=>$sourceId,
+            'state'=>1,'created'=>Factory::getDate()->toSql(),'created_by'=>max(0,$actorUserId),
+        ];
+        $this->db->insertObject('#__decarofinance_cost_centers',$row);
+        $id=(int)$this->db->insertid();
+        if ($id<1) { throw new RuntimeException('Cost center was not created.'); }
+        return $id;
+    }
+
+    public function getOrCreateCostCenter(array $data, int $actorUserId=0): int
+    {
+        return $this->createCostCenter($data,$actorUserId);
+    }
+
+    public function getCostCenter(int $id): ?array
+    {
+        return $this->findById('#__decarofinance_cost_centers',$id);
+    }
+
     public function createAccount(array $data, int $actorUserId=0): int
     {
-        $externalKey=$this->externalKey($data['external_key'] ?? null);
+        $externalKey=$this->externalKeyOrGenerated($data['external_key'] ?? null,'account');
         if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_accounts',$externalKey); if ($existing>0) { return $existing; } }
         [$ownerComponent,$ownerEntity,$ownerId]=$this->optionalReference($data,'owner');
         $name=trim((string)($data['name'] ?? '')); if ($name==='' || mb_strlen($name)>255) { throw new InvalidArgumentException('Account name is required.'); }
@@ -277,7 +317,7 @@ final class FinanceService
 
     public function recordTransaction(array $data, int $actorUserId=0): int
     {
-        $externalKey=$this->externalKey($data['external_key'] ?? null); if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_transactions',$externalKey); if ($existing>0) { return $existing; } }
+        $externalKey=$this->externalKeyOrGenerated($data['external_key'] ?? null,'transaction'); if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_transactions',$externalKey); if ($existing>0) { return $existing; } }
         $direction=strtolower(trim((string)($data['direction'] ?? ''))); if (!in_array($direction,self::DIRECTIONS,true)) { throw new InvalidArgumentException('Invalid transaction direction.'); }
         $currency=$this->currency($data['currency'] ?? 'EUR');
         $accountId=max(0,(int)($data['account_id'] ?? 0));
@@ -287,6 +327,11 @@ final class FinanceService
             if ((string)$account['currency']!==$currency) { throw new InvalidArgumentException('Transaction currency differs from account currency.'); }
         }
         $budgetLineId=max(0,(int)($data['budget_line_id'] ?? 0));
+        $costCenterId=max(0,(int)($data['cost_center_id'] ?? 0));
+        if ($costCenterId>0) {
+            $costCenter=$this->getCostCenter($costCenterId);
+            if ($costCenter===null || (int)($costCenter['state'] ?? 0)!==1) { throw new InvalidArgumentException('Cost center is unavailable.'); }
+        }
         if ($budgetLineId>0) {
             $ctx=$this->budgetLineContext($budgetLineId);
             if ($ctx===null) { throw new InvalidArgumentException('Budget line not found.'); }
@@ -301,7 +346,7 @@ final class FinanceService
             throw new InvalidArgumentException('internal_transfer is reserved for Finance transfer pairs.');
         }
         $row=(object)[
-            'external_key'=>$externalKey,'account_id'=>$accountId?:null,'budget_line_id'=>$budgetLineId?:null,'direction'=>$direction,
+            'external_key'=>$externalKey,'account_id'=>$accountId?:null,'budget_line_id'=>$budgetLineId?:null,'cost_center_id'=>$costCenterId?:null,'direction'=>$direction,
             'category'=>$category,'amount'=>$this->positiveAmount($data['amount'] ?? 0,'amount'),
             'currency'=>$currency,'occurred_at'=>$this->nullableDateTime($data['occurred_at'] ?? null) ?? Factory::getDate()->toSql(),
             'source_component'=>$sourceComponent,'source_entity'=>$sourceEntity,'source_id'=>$sourceId,
@@ -315,7 +360,7 @@ final class FinanceService
 
     public function createOrder(array $data, int $actorUserId=0): int
     {
-        $externalKey=$this->externalKey($data['external_key'] ?? null);
+        $externalKey=$this->externalKeyOrGenerated($data['external_key'] ?? null,'order');
         if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_orders',$externalKey); if ($existing>0) { return $existing; } }
         $direction=strtolower(trim((string)($data['direction'] ?? ''))); if (!in_array($direction,self::DIRECTIONS,true)) { throw new InvalidArgumentException('Invalid order direction.'); }
         $currency=$this->currency($data['currency'] ?? 'EUR');
@@ -323,6 +368,11 @@ final class FinanceService
         if ($accountId<1) { throw new InvalidArgumentException('A financial account is required for an order.'); }
         $account=$this->getAccount($accountId); if ($account===null || (int)($account['state'] ?? 0)!==1) { throw new InvalidArgumentException('Financial account is unavailable.'); } if ((string)$account['currency']!==$currency) { throw new InvalidArgumentException('Order currency differs from account currency.'); }
         $budgetLineId=max(0,(int)($data['budget_line_id'] ?? 0));
+        $costCenterId=max(0,(int)($data['cost_center_id'] ?? 0));
+        if ($costCenterId>0) {
+            $costCenter=$this->getCostCenter($costCenterId);
+            if ($costCenter===null || (int)($costCenter['state'] ?? 0)!==1) { throw new InvalidArgumentException('Cost center is unavailable.'); }
+        }
         if ($budgetLineId>0) { $ctx=$this->budgetLineContext($budgetLineId); if ($ctx===null) { throw new InvalidArgumentException('Budget line not found.'); } if ((string)$ctx['kind']!==$direction) { throw new InvalidArgumentException('Order direction differs from budget line kind.'); } if ((string)$ctx['currency']!==$currency) { throw new InvalidArgumentException('Order currency differs from budget currency.'); } }
         [$ownerComponent,$ownerEntity,$ownerId]=$this->optionalReference($data,'owner');
         [$counterpartyComponent,$counterpartyEntity,$counterpartyId]=$this->optionalReference($data,'counterparty');
@@ -330,7 +380,7 @@ final class FinanceService
         [$evidenceComponent,$evidenceEntity,$evidenceId]=$this->optionalReference($data,'evidence');
         $required=(int)($data['required_approvals'] ?? 2); if ($required<1 || $required>5) { throw new InvalidArgumentException('required_approvals must be between 1 and 5.'); }
         $row=(object)[
-            'external_key'=>$externalKey,'direction'=>$direction,'account_id'=>$accountId?:null,'budget_line_id'=>$budgetLineId?:null,
+            'external_key'=>$externalKey,'direction'=>$direction,'account_id'=>$accountId?:null,'budget_line_id'=>$budgetLineId?:null,'cost_center_id'=>$costCenterId?:null,
             'owner_component'=>$ownerComponent,'owner_entity'=>$ownerEntity,'owner_id'=>$ownerId,
             'counterparty_component'=>$counterpartyComponent,'counterparty_entity'=>$counterpartyEntity,'counterparty_id'=>$counterpartyId,
             'category'=>$this->nullableToken($data['category'] ?? null,100,'category'),'description'=>$this->nullableText($data['description'] ?? null,500),
@@ -366,7 +416,7 @@ final class FinanceService
 
     public function transferBetweenAccounts(array $data, int $actorUserId=0): int
     {
-        $externalKey=$this->externalKey($data['external_key'] ?? null);
+        $externalKey=$this->externalKeyOrGenerated($data['external_key'] ?? null,'transfer');
         $fromId=(int)($data['from_account_id'] ?? 0); $toId=(int)($data['to_account_id'] ?? 0);
         if ($fromId<1 || $toId<1 || $fromId===$toId) { throw new InvalidArgumentException('Transfer requires two different financial accounts.'); }
         $from=$this->getAccount($fromId); $to=$this->getAccount($toId);
@@ -445,7 +495,7 @@ final class FinanceService
 
     public function recordCashCheck(array $data, int $actorUserId=0): int
     {
-        $externalKey=$this->externalKey($data['external_key'] ?? null);
+        $externalKey=$this->externalKeyOrGenerated($data['external_key'] ?? null,'cashcheck');
         $accountId=(int)($data['account_id'] ?? 0);
         $account=$this->getAccount($accountId);
         if ($account===null || (int)($account['state'] ?? 0)!==1) { throw new InvalidArgumentException('Financial account is unavailable.'); }
@@ -492,7 +542,7 @@ final class FinanceService
 
     public function createStatement(array $data, int $actorUserId=0): int
     {
-        $externalKey=$this->externalKey($data['external_key'] ?? null);
+        $externalKey=$this->externalKeyOrGenerated($data['external_key'] ?? null,'statement');
         if ($externalKey!==null) { $existing=$this->findExternal('#__decarofinance_statements',$externalKey); if ($existing>0) { return $existing; } }
         $type=strtolower(trim((string)($data['statement_type'] ?? 'operational')));
         if (!in_array($type,self::STATEMENT_TYPES,true)) { throw new InvalidArgumentException('Invalid statement type.'); }
@@ -599,7 +649,7 @@ final class FinanceService
         $sourceComponent=(string)($order['source_component'] ?? ''); $sourceEntity=(string)($order['source_entity'] ?? ''); $sourceId=(string)($order['source_id'] ?? '');
         if ($sourceComponent==='' || $sourceEntity==='' || $sourceId==='') { $sourceComponent='com_decarofinance'; $sourceEntity='order'; $sourceId=(string)$orderId; }
         $transactionId=$this->recordTransaction([
-            'external_key'=>'finance:order:'.$orderId,'account_id'=>$accountId,'budget_line_id'=>(int)($order['budget_line_id'] ?? 0),
+            'external_key'=>'finance:order:'.$orderId,'account_id'=>$accountId,'budget_line_id'=>(int)($order['budget_line_id'] ?? 0),'cost_center_id'=>(int)($order['cost_center_id'] ?? 0),
             'direction'=>$order['direction'],'category'=>$order['category'],'amount'=>$order['amount'],'currency'=>$order['currency'],
             'source_component'=>$sourceComponent,'source_entity'=>$sourceEntity,'source_id'=>$sourceId,
             'counterparty_component'=>$order['counterparty_component'],'counterparty_entity'=>$order['counterparty_entity'],'counterparty_id'=>$order['counterparty_id'],
@@ -645,7 +695,12 @@ final class FinanceService
         if ($budgetId<1) { throw new InvalidArgumentException('Invalid budget.'); } $kind=strtolower(trim($kind)); if (!in_array($kind,['income','expense'],true)) { throw new InvalidArgumentException('Invalid budget line kind.'); }
         $title=trim($title); if ($title==='') { throw new InvalidArgumentException('Budget line title is required.'); }
         $amount=$this->nonNegativeAmount($plannedAmount,'planned_amount');
-        $row=(object)['budget_id'=>$budgetId,'kind'=>$kind,'code'=>$this->nullableToken($meta['code'] ?? null,64,'code'),'category'=>$this->nullableToken($meta['category'] ?? null,100,'category'),'title'=>mb_substr($title,0,255),'planned_amount'=>$amount];
+        $costCenterId=max(0,(int)($meta['cost_center_id'] ?? 0));
+        if ($costCenterId>0) {
+            $costCenter=$this->getCostCenter($costCenterId);
+            if ($costCenter===null || (int)($costCenter['state'] ?? 0)!==1) { throw new InvalidArgumentException('Cost center is unavailable.'); }
+        }
+        $row=(object)['budget_id'=>$budgetId,'kind'=>$kind,'code'=>$this->nullableToken($meta['code'] ?? null,64,'code'),'category'=>$this->nullableToken($meta['category'] ?? null,100,'category'),'title'=>mb_substr($title,0,255),'planned_amount'=>$amount,'cost_center_id'=>$costCenterId?:null];
         $this->db->insertObject('#__decarofinance_budget_lines',$row); return (int)$this->db->insertid();
     }
 
@@ -728,6 +783,15 @@ final class FinanceService
     private function nullableToken(mixed $v,int $max,string $name): ?string { $v=trim((string)$v); return $v===''?null:$this->token($v,$max,$name); }
     private function identifier(int|string $v,string $name): string { $v=trim((string)$v); if ($v===''||strlen($v)>191||!preg_match('/^[A-Za-z0-9_.:@-]+$/',$v)) throw new InvalidArgumentException('Invalid '.$name.'.'); return $v; }
     private function externalKey(mixed $v): ?string { $v=trim((string)$v); if ($v==='') return null; if (strlen($v)>191) throw new InvalidArgumentException('external_key too long.'); return $v; }
+    private function externalKeyOrGenerated(mixed $v,string $scope): string
+    {
+        return $this->externalKey($v) ?? $this->generatedExternalKey($scope);
+    }
+    private function generatedExternalKey(string $scope): string
+    {
+        $scope=preg_replace('/[^a-z0-9_-]+/','',strtolower($scope)) ?: 'record';
+        return 'finance:manual:'.$scope.':'.bin2hex(random_bytes(16));
+    }
     private function currency(mixed $v): string { $v=strtoupper(trim((string)$v)); if (!preg_match('/^[A-Z]{3}$/',$v)) throw new InvalidArgumentException('Invalid currency.'); return $v; }
     private function positiveAmount(mixed $v,string $name): float { $n=$this->number($v,$name); if ($n<=0) throw new InvalidArgumentException($name.' must be greater than zero.'); return round($n,2); }
     private function nonZeroAmount(mixed $v,string $name): float { $n=$this->number($v,$name); if (abs($n)<0.005) throw new InvalidArgumentException($name.' must be non-zero.'); return round($n,2); }
