@@ -4,6 +4,12 @@ defined('_JEXEC') or die;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Router\Route;
+
+$typeLabel=static function(string $type):string {
+    $key='COM_DECAROFINANCE_ACCOUNT_TYPE_'.strtoupper($type);
+    $label=Text::_($key);
+    return $label===$key ? $type : $label;
+};
 ?>
 <div class="xdf-finance">
   <section class="xdecaro-card xdf-form-card">
@@ -22,13 +28,16 @@ use Joomla\CMS\Router\Route;
         </label>
         <label><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_IDENTIFIER'); ?><input class="form-control" name="identifier" maxlength="191"></label>
         <label><?php echo Text::_('COM_DECAROFINANCE_CURRENCY'); ?><input class="form-control" name="currency" value="EUR" maxlength="3" required></label>
-        <label><?php echo Text::_('COM_DECAROFINANCE_OPENING_BALANCE'); ?><input class="form-control" name="opening_balance" value="0.00" inputmode="decimal" required></label>
-        <label><?php echo Text::_('COM_DECAROFINANCE_EXTERNAL_KEY'); ?><input class="form-control" name="external_key" maxlength="191"></label>
-        <details class="xdf-span-2 xdf-advanced"><summary><?php echo Text::_('COM_DECAROFINANCE_OWNER_REFERENCE'); ?></summary><div class="xdf-form-grid">
-          <label><?php echo Text::_('COM_DECAROFINANCE_OWNER_COMPONENT'); ?><input class="form-control" name="owner_component" placeholder="com_xxx"></label>
-          <label><?php echo Text::_('COM_DECAROFINANCE_OWNER_ENTITY'); ?><input class="form-control" name="owner_entity" placeholder="organization"></label>
-          <label><?php echo Text::_('COM_DECAROFINANCE_OWNER_ID'); ?><input class="form-control" name="owner_id"></label>
-        </div></details>
+        <label><?php echo Text::_('COM_DECAROFINANCE_OPENING_BALANCE'); ?><input class="form-control" name="opening_balance" value="0,00" inputmode="decimal" required></label>
+        <label class="xdf-span-2"><?php echo Text::_('COM_DECAROFINANCE_OWNER_REFERENCE'); ?>
+          <select class="form-select" name="owner_organization_uuid">
+            <option value=""><?php echo Text::_('COM_DECAROFINANCE_NO_OWNER'); ?></option>
+            <?php foreach($this->organizations as $organization): ?>
+              <option value="<?php echo htmlspecialchars((string)$organization['uuid'],ENT_QUOTES,'UTF-8'); ?>"><?php echo htmlspecialchars((string)$organization['name'],ENT_QUOTES,'UTF-8'); ?></option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+        <div class="xdf-span-2"><div class="form-text"><?php echo Text::_('COM_DECAROFINANCE_EXTERNAL_KEY_AUTOMATIC_HELP'); ?></div></div>
         <div class="xdf-span-2"><button class="btn btn-primary" type="submit"><?php echo Text::_('JSAVE'); ?></button></div>
         <?php echo HTMLHelper::_('form.token'); ?>
       </form>
@@ -40,13 +49,13 @@ use Joomla\CMS\Router\Route;
       <table class="table table-striped">
         <thead><tr><th>ID</th><th><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_CODE'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_NAME'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_ACCOUNT_TYPE'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_OWNER'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_CURRENCY'); ?></th><th><?php echo Text::_('COM_DECAROFINANCE_BALANCE'); ?></th></tr></thead>
         <tbody>
-        <?php foreach ($this->items as $row): $owner=array_filter([$row['owner_component'],$row['owner_entity'],$row['owner_id']]); ?>
+        <?php foreach ($this->items as $row): ?>
           <tr>
             <td><?php echo (int)$row['id']; ?></td>
             <td><?php echo htmlspecialchars((string)($row['code']??''),ENT_QUOTES,'UTF-8'); ?></td>
             <td><?php echo htmlspecialchars((string)$row['name'],ENT_QUOTES,'UTF-8'); ?><div class="xdf-muted"><?php echo htmlspecialchars((string)($row['identifier']??''),ENT_QUOTES,'UTF-8'); ?></div></td>
-            <td><?php echo htmlspecialchars((string)$row['account_type'],ENT_QUOTES,'UTF-8'); ?></td>
-            <td><?php echo htmlspecialchars(implode(':',$owner),ENT_QUOTES,'UTF-8'); ?></td>
+            <td><?php echo htmlspecialchars($typeLabel((string)$row['account_type']),ENT_QUOTES,'UTF-8'); ?></td>
+            <td><?php echo htmlspecialchars((string)($row['owner_label']??''),ENT_QUOTES,'UTF-8'); ?></td>
             <td><?php echo htmlspecialchars((string)$row['currency'],ENT_QUOTES,'UTF-8'); ?></td>
             <td><?php echo number_format((float)$row['balance'],2,',','.'); ?></td>
           </tr>
