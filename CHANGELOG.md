@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.0 — 2026-09-20
+- Added Finance cost centers so teams, events, courses and projects can be tracked without duplicating them as accounting organizations.
+- Added public `createCostCenter()`, `getOrCreateCostCenter()` and `getCostCenter()` service APIs with stable source references.
+- Added optional organization ownership selectors for budgets, accounts, orders, cost centers and statements through the Organizations public provider.
+- Added optional People/Organizations selectors for debtors, payers, counterparties and deposit owners; legacy technical references remain available only as compatibility/fallback paths.
+- Removed manual external-key entry from normal administrator workflows; Finance now generates technical keys automatically for manual records while preserving explicit stable keys from integrations.
+- Added cost-center references to budget lines, orders and financial transactions and exposed them in reporting.
+- Translated technical statuses/types in the administrator UI and converted stored UTC timestamps to the Joomla user/site timezone for display.
+- Rebuilt the Information page with product/environment, bundled extensions, update channel, connected components and full diagnostics.
+- Added non-destructive schema updates and real runtime/upgrade regression coverage.
+- Optional products remain optional and Finance never reads their tables directly.
+
 ## 1.5.5 — 2026-09-19
 - Fixed a financial-integrity bug found during administrator testing: when a payment was created and its obligation allocation then failed, the payment row remained stored with zero allocation.
 - Added `recordPaymentAndAllocate()`, which records and allocates a payment in one database transaction.
