@@ -55,7 +55,7 @@ jobs:
           assert "MINIMUM_CORE_VERSION = '1.4.0'" in source, 'Core minimum version mismatch'
           assert pathlib.Path(f'component/admin/sql/updates/mysql/{v}.sql').is_file(), 'schema version marker missing'
           finance = pathlib.Path('component/admin/src/Service/FinanceService.php').read_text()
-          for method in ['upsertObligation', 'upsertPayment', 'allocatePaymentIdempotent', 'recordPaymentAndAllocate', 'createAccount', 'recordTransaction', 'createOrder', 'approveOrder', 'executeOrder', 'getBudgetLineAvailability', 'transferBetweenAccounts', 'recordCashCheck', 'createStatement', 'addStatementLine', 'finaliseStatement', 'approveStatement']:
+          for method in ['upsertObligation', 'upsertPayment', 'allocatePaymentIdempotent', 'recordPaymentAndAllocate', 'getOrCreateCostCenter', 'createAccount', 'recordTransaction', 'createOrder', 'approveOrder', 'executeOrder', 'getBudgetLineAvailability', 'transferBetweenAccounts', 'recordCashCheck', 'createStatement', 'addStatementLine', 'finaliseStatement', 'approveStatement']:
               assert f'function {method}' in finance, f'{method} API missing'
           PY
           ! grep -RniE 'DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE' component/admin/sql
@@ -76,7 +76,7 @@ jobs:
             dist/*.zip \
             dist/SHA256SUMS.txt \
             --title "Finance by xdecaro ${VERSION}" \
-            --notes "Finance ${VERSION}: makes administrator payment creation plus obligation allocation atomic. If allocation is rejected, the payment insert is rolled back so no orphan payment remains. Adds the replay-safe recordPaymentAndAllocate service API; no schema changes."
+            --notes "Finance ${VERSION}: adds organization-owned budgets and accounts, reusable cost centers for teams/events/courses/projects, provider-backed People/Organizations selectors, automatic technical keys, localized status labels, Joomla-timezone display and a complete Information/Diagnostics page. Includes non-destructive schema updates and preserves optional integration boundaries."
 
       - name: Publish package checksum
         shell: bash

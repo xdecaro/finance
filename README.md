@@ -1,9 +1,9 @@
 # Finance by xdecaro
 
-Finance is the financial layer of the xdecaro Joomla ecosystem. Current version: **1.5.5**.
+Finance is the financial layer of the xdecaro Joomla ecosystem. Current version: **1.6.0**.
 
 ## Ownership
-Finance owns budgets, obligations, payments, payment allocations, deposit/caution accounts and append-only movements, financial accounts, financial transactions, internal transfers, cash checks, collection/payment orders, statement snapshots, due dates, budget coverage and financial audit metadata.
+Finance owns budgets, cost centers, obligations, payments, payment allocations, deposit/caution accounts and append-only movements, financial accounts, financial transactions, internal transfers, cash checks, collection/payment orders, statement snapshots, due dates, budget coverage and financial audit metadata.
 
 The source product owns *why* a charge, reimbursement, contribution or payment exists. Membership, Competitions, Courses, Events, Volunteers and other products submit normalized financial records through Finance's public service. Finance does not copy their business rules and does not require those products to be installed.
 
@@ -12,15 +12,20 @@ The source product owns *why* a charge, reimbursement, contribution or payment e
 - obligations, payments and allocations;
 - deposit/caution accounts and append-only movements;
 - financial accounts and append-only financial transactions;
-- budgets and budget lines;
+- organization-owned budgets, budget lines and reusable cost centers;
 - collection/payment orders, multi-step approvals and execution;
 - internal account transfers;
 - cash reconciliation checks;
 - statement snapshots, lines, finalisation and approval.
 
-External writes should provide `external_key` whenever a stable source key exists. Entity links use `component + entity + id`, so People, Organizations, Documents and other products remain optional.
+External writes should provide `external_key` whenever a stable source key exists. Manual administrator writes generate a technical key automatically. Entity links use `component + entity + id`, while the administrator UI resolves optional People and Organizations through their public providers; no direct cross-product database reads are used.
 
 Replay-safe synchronization remains available through `upsertObligation()`, `upsertPayment()` and `allocatePaymentIdempotent()`. Administrator flows that create a payment and immediately allocate it use `recordPaymentAndAllocate()`, so a rejected allocation rolls back the payment insert atomically and cannot leave an orphan payment. Allocated or closed financial history cannot be silently rewritten.
+
+## Ownership and cost centers
+Finance 1.6.0 separates the **accounting owner** from the **activity being costed**. Budgets, accounts, orders and statements can reference an organization supplied by Organizations through its public provider. Teams, events, courses and projects should normally be represented by Finance cost centers instead of being duplicated as accounting organizations.
+
+`getOrCreateCostCenter()` lets a source product register a stable cost center using its own `component + entity + id` reference. For example, Competitions can map a team to a Finance cost center while the owning organization remains ENS Roma or another accounting structure. The integration is optional: Finance remains fully installable and usable without Organizations, People or Competitions.
 
 ## Institutional accounting workflow
 Finance 1.4.0 introduced generic accounting workflow foundations:
@@ -55,7 +60,7 @@ Documents can be referenced as supporting evidence without becoming a required d
 ## Compatibility and security
 Target Joomla 4, 5 and 6 where technically possible, with PHP 8.1+. Administrator writes enforce server-side ACL and CSRF. Monetary inputs are normalized centrally and accept both decimal point and decimal comma, including common grouped formats, before exact validation and storage. SQL uses `#__`, bound queries or integer-cast identifiers, non-destructive updates and `utf8mb4` storage. Financial transaction and deposit ledgers are append-only through the public service: corrections should be represented by explicit new movements rather than destructive rewrites.
 
-The package CI performs clean installation and runtime regression checks on supported Joomla branches without requiring optional xdecaro products. Administrator code resolves Finance services through the booted component API rather than Joomla's global DI container, preserving the component-local service-provider boundary. Finance administrator styling is attached through a centralized scoped head link to `/media/com_decarofinance/css/admin.css`, matching the path verified to load correctly on the target Joomla administrator.
+The package CI performs clean installation and runtime regression checks on supported Joomla branches without requiring optional xdecaro products. Administrator timestamps are stored as UTC and displayed in the Joomla user/site timezone. Administrator code resolves Finance services through the booted component API rather than Joomla's global DI container, preserving the component-local service-provider boundary. Finance administrator styling is attached through a centralized scoped head link to `/media/com_decarofinance/css/admin.css`, matching the path verified to load correctly on the target Joomla administrator.
 
 ## Build
 `bash build/build.sh` creates the component, Analytics plugin, Scheduler plugin, package and `SHA256SUMS.txt` in `dist/`.

@@ -12,6 +12,7 @@ final class HtmlView extends BaseHtmlView
 {
     public array $items=[];
     public array $lines=[];
+    public array $organizations=[];
     public bool $canCreate=false;
     public bool $canReconcile=false;
     public bool $canApprove=false;
@@ -25,8 +26,14 @@ final class HtmlView extends BaseHtmlView
         $component=$app->bootComponent('com_decarofinance');
         if (!$component instanceof \Xdecaro\Component\Decarofinance\Administrator\Extension\DecarofinanceComponent) { throw new \RuntimeException('Finance component is unavailable.'); }
         $query=$component->getFinanceQueryService();
+        $references=$component->getReferenceLookupService();
         $this->items=$query->listStatements();
-        foreach ($this->items as $row) { $this->lines[(int)$row['id']]=$query->listStatementLines((int)$row['id']); }
+        foreach ($this->items as &$row) {
+            $row['owner_label']=$references->label($row['owner_component']??null,$row['owner_entity']??null,$row['owner_id']??null);
+            $this->lines[(int)$row['id']]=$query->listStatementLines((int)$row['id']);
+        }
+        unset($row);
+        $this->organizations=$references->listOrganizations();
         $this->canCreate=$identity->authorise('core.create','com_decarofinance');
         $this->canReconcile=$identity->authorise('finance.reconcile','com_decarofinance');
         $this->canApprove=$identity->authorise('finance.approve','com_decarofinance');

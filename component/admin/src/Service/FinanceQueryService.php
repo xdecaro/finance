@@ -51,6 +51,16 @@ final class FinanceQueryService
         return $this->db->setQuery($q,0,max(1,min(500,$limit)))->loadAssocList();
     }
 
+    public function listCostCenters(int $limit=200): array
+    {
+        $q=$this->db->getQuery(true)
+            ->select('*')
+            ->from($this->db->quoteName('#__decarofinance_cost_centers'))
+            ->where($this->db->quoteName('state').' = 1')
+            ->order($this->db->quoteName('title').' ASC');
+        return $this->db->setQuery($q,0,max(1,min(500,$limit)))->loadAssocList();
+    }
+
     public function listBudgets(int $limit=100): array
     {
         $q=$this->db->getQuery(true)
@@ -64,9 +74,10 @@ final class FinanceQueryService
     public function listBudgetLines(int $limit=500): array
     {
         $q=$this->db->getQuery(true)
-            ->select(['l.*','b.title AS budget_title','b.currency','b.period_start','b.period_end'])
+            ->select(['l.*','b.title AS budget_title','b.currency','b.period_start','b.period_end','cc.title AS cost_center_title','cc.code AS cost_center_code'])
             ->from($this->db->quoteName('#__decarofinance_budget_lines','l'))
             ->innerJoin($this->db->quoteName('#__decarofinance_budgets','b').' ON b.id = l.budget_id')
+            ->leftJoin($this->db->quoteName('#__decarofinance_cost_centers','cc').' ON cc.id = l.cost_center_id')
             ->where('b.state = 1')
             ->order('b.created DESC, l.id ASC');
         return $this->db->setQuery($q,0,max(1,min(1000,$limit)))->loadAssocList();
@@ -86,11 +97,12 @@ final class FinanceQueryService
     public function listTransactions(int $limit=200): array
     {
         $q=$this->db->getQuery(true)
-            ->select(['t.*','a.name AS account_name','b.title AS budget_title','l.title AS budget_line_title'])
+            ->select(['t.*','a.name AS account_name','b.title AS budget_title','l.title AS budget_line_title','cc.title AS cost_center_title'])
             ->from($this->db->quoteName('#__decarofinance_transactions','t'))
             ->leftJoin($this->db->quoteName('#__decarofinance_accounts','a').' ON a.id = t.account_id')
             ->leftJoin($this->db->quoteName('#__decarofinance_budget_lines','l').' ON l.id = t.budget_line_id')
             ->leftJoin($this->db->quoteName('#__decarofinance_budgets','b').' ON b.id = l.budget_id')
+            ->leftJoin($this->db->quoteName('#__decarofinance_cost_centers','cc').' ON cc.id = t.cost_center_id')
             ->order('t.occurred_at DESC, t.id DESC');
         return $this->db->setQuery($q,0,max(1,min(1000,$limit)))->loadAssocList();
     }
@@ -98,11 +110,12 @@ final class FinanceQueryService
     public function listOrders(int $limit=200): array
     {
         $q=$this->db->getQuery(true)
-            ->select(['o.*','a.name AS account_name','b.title AS budget_title','l.title AS budget_line_title','COALESCE(ap.approval_count,0) AS approval_count'])
+            ->select(['o.*','a.name AS account_name','b.title AS budget_title','l.title AS budget_line_title','cc.title AS cost_center_title','COALESCE(ap.approval_count,0) AS approval_count'])
             ->from($this->db->quoteName('#__decarofinance_orders','o'))
             ->leftJoin($this->db->quoteName('#__decarofinance_accounts','a').' ON a.id = o.account_id')
             ->leftJoin($this->db->quoteName('#__decarofinance_budget_lines','l').' ON l.id = o.budget_line_id')
             ->leftJoin($this->db->quoteName('#__decarofinance_budgets','b').' ON b.id = l.budget_id')
+            ->leftJoin($this->db->quoteName('#__decarofinance_cost_centers','cc').' ON cc.id = o.cost_center_id')
             ->leftJoin('(SELECT order_id, COUNT(*) AS approval_count FROM '.$this->db->quoteName('#__decarofinance_order_approvals')." WHERE decision = 'approved' GROUP BY order_id) ap ON ap.order_id = o.id")
             ->order("FIELD(o.status,'pending','draft','approved','executed','cancelled'), o.due_date IS NULL, o.due_date ASC, o.id DESC");
         return $this->db->setQuery($q,0,max(1,min(1000,$limit)))->loadAssocList();
@@ -189,12 +202,13 @@ final class FinanceQueryService
         $currency=$this->normalizeCurrency($currency);
         $q=$this->db->getQuery(true)
             ->select([
-                'l.id','l.budget_id','b.title AS budget_title','b.currency','l.kind','l.code','l.category','l.title','l.planned_amount',
+                'l.id','l.budget_id','b.title AS budget_title','b.currency','l.kind','l.code','l.category','l.title','l.planned_amount','cc.title AS cost_center_title',
                 'COALESCE(t.realized,0) AS realized_amount','COALESCE(o.committed,0) AS committed_amount',
                 '(l.planned_amount - COALESCE(t.realized,0) - COALESCE(o.committed,0)) AS available_amount'
             ])
             ->from($this->db->quoteName('#__decarofinance_budget_lines','l'))
             ->innerJoin($this->db->quoteName('#__decarofinance_budgets','b').' ON b.id = l.budget_id')
+            ->leftJoin($this->db->quoteName('#__decarofinance_cost_centers','cc').' ON cc.id = l.cost_center_id')
             ->leftJoin('(SELECT budget_line_id, SUM(amount) AS realized FROM '.$this->db->quoteName('#__decarofinance_transactions').' WHERE budget_line_id IS NOT NULL GROUP BY budget_line_id) t ON t.budget_line_id = l.id')
             ->leftJoin('(SELECT budget_line_id, SUM(amount) AS committed FROM '.$this->db->quoteName('#__decarofinance_orders')." WHERE budget_line_id IS NOT NULL AND status IN ('pending','approved') GROUP BY budget_line_id) o ON o.budget_line_id = l.id")
             ->where('b.state = 1')

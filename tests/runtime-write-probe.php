@@ -206,8 +206,46 @@ if (abs($finance->getDepositBalance($account1) - 475.0) > 0.0001) {
     exit(1);
 }
 
+$costCenterId1 = $finance->getOrCreateCostCenter([
+    'title' => 'CI Team Cost Center',
+    'code' => 'TEAM-CI',
+    'owner_component' => 'com_example',
+    'owner_entity' => 'organization',
+    'owner_id' => 'rome',
+    'source_component' => 'com_example',
+    'source_entity' => 'team',
+    'source_id' => 'team-10',
+], 1);
+$costCenterId2 = $finance->getOrCreateCostCenter([
+    'title' => 'CI Team Cost Center',
+    'code' => 'TEAM-CI',
+    'owner_component' => 'com_example',
+    'owner_entity' => 'organization',
+    'owner_id' => 'rome',
+    'source_component' => 'com_example',
+    'source_entity' => 'team',
+    'source_id' => 'team-10',
+], 1);
+if ($costCenterId1 < 1 || $costCenterId1 !== $costCenterId2) {
+    fwrite(STDERR, "Cost center source identity is not stable.\n");
+    exit(1);
+}
+
+$manualObligationId = $finance->createObligation([
+    'kind' => 'manual_key_test',
+    'amount' => '5,00',
+    'currency' => 'EUR',
+], 1);
+$manualObligation = $finance->getObligation($manualObligationId);
+if (!is_array($manualObligation) || trim((string)($manualObligation['external_key'] ?? '')) === '') {
+    fwrite(STDERR, "Manual obligation did not receive an automatic technical key.\n");
+    exit(1);
+}
+
 $budgetId = $finance->createBudget('CI Budget', '2026-01-01', '2026-12-31', 1);
-$lineId = $finance->addBudgetLine($budgetId, 'expense', 'CI Expense', '250,00');
+$lineId = $finance->addBudgetLine($budgetId, 'expense', 'CI Expense', '250,00', [
+    'cost_center_id' => $costCenterId1,
+]);
 if ($budgetId < 1 || $lineId < 1) {
     fwrite(STDERR, "Budget writes failed.\n");
     exit(1);
@@ -264,6 +302,7 @@ $institutionalBudgetId = $finance->createBudget('CI Institutional Budget', '2026
 $expenseLineId = $finance->addBudgetLine($institutionalBudgetId, 'expense', 'Institutional operations', '1.000,00', [
     'code' => 'OPS',
     'category' => 'operations',
+    'cost_center_id' => $costCenterId1,
 ]);
 
 $orderId = $finance->createOrder([
@@ -271,6 +310,7 @@ $orderId = $finance->createOrder([
     'direction' => 'expense',
     'account_id' => $accountId1,
     'budget_line_id' => $expenseLineId,
+    'cost_center_id' => $costCenterId1,
     'owner_component' => 'com_example',
     'owner_entity' => 'organization',
     'owner_id' => 'rome',
@@ -349,7 +389,9 @@ foreach ($transactions as $candidate) {
 }
 if (!is_array($transactionRow)
     || (string) ($transactionRow['evidence_id'] ?? '') !== 'receipt-1'
-    || (int) ($transactionRow['budget_line_id'] ?? 0) !== $expenseLineId) {
+    || (int) ($transactionRow['budget_line_id'] ?? 0) !== $expenseLineId
+    || (int) ($transactionRow['cost_center_id'] ?? 0) !== $costCenterId1
+    || (string) ($transactionRow['cost_center_title'] ?? '') !== 'CI Team Cost Center') {
     fwrite(STDERR, "Executed order did not preserve budget/evidence references.\n");
     exit(1);
 }
@@ -609,4 +651,17 @@ if ((int) ($summary15['cash_check_variances'] ?? 0) < 1
     exit(1);
 }
 
-echo "Finance 1.5 reporting and reconciliation runtime writes OK\n";
+$costCenters = $query->listCostCenters();
+$foundCostCenter = false;
+foreach ($costCenters as $costCenter) {
+    if ((int)($costCenter['id'] ?? 0) === $costCenterId1 && (string)($costCenter['title'] ?? '') === 'CI Team Cost Center') {
+        $foundCostCenter = true;
+        break;
+    }
+}
+if (!$foundCostCenter) {
+    fwrite(STDERR, "Cost center query API did not return the created center.\n");
+    exit(1);
+}
+
+echo "Finance 1.6 ownership, cost-center and accounting runtime writes OK\n";

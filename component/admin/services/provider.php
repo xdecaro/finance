@@ -22,11 +22,12 @@ return new class implements ServiceProviderInterface {
         $container->share(FinanceService::class,static fn(Container $c)=>new FinanceService($c->get(DatabaseInterface::class)));
         $container->share(FinanceQueryService::class,static fn(Container $c)=>new FinanceQueryService($c->get(DatabaseInterface::class)));
         $container->share(CrossProductIntegrationService::class,static fn()=>new CrossProductIntegrationService());
+        $container->share(ReferenceLookupService::class,static fn()=>new ReferenceLookupService());
         $container->share(AnalyticsSourceService::class,static fn(Container $c)=>new AnalyticsSourceService($c->get(FinanceQueryService::class)));
         $container->share(FinanceReminderService::class,static fn(Container $c)=>new FinanceReminderService($c->get(FinanceQueryService::class),$c->get(CrossProductIntegrationService::class)));
         $container->set(ComponentInterface::class,static function(Container $c):ComponentInterface {
             $component=new DecarofinanceComponent($c->get(ComponentDispatcherFactoryInterface::class),$c->get(MVCFactoryInterface::class));
-            $component->setCoreIntegrationService($c->get(CoreIntegrationService::class)); $component->setFinanceService($c->get(FinanceService::class)); $component->setFinanceQueryService($c->get(FinanceQueryService::class)); $component->setCrossProductIntegrationService($c->get(CrossProductIntegrationService::class)); $component->setAnalyticsSourceService($c->get(AnalyticsSourceService::class)); $component->setFinanceReminderService($c->get(FinanceReminderService::class)); return $component;
+            $component->setCoreIntegrationService($c->get(CoreIntegrationService::class)); $component->setFinanceService($c->get(FinanceService::class)); $component->setFinanceQueryService($c->get(FinanceQueryService::class)); $component->setCrossProductIntegrationService($c->get(CrossProductIntegrationService::class)); $component->setReferenceLookupService($c->get(ReferenceLookupService::class)); $component->setAnalyticsSourceService($c->get(AnalyticsSourceService::class)); $component->setFinanceReminderService($c->get(FinanceReminderService::class)); return $component;
         });
     }
 };

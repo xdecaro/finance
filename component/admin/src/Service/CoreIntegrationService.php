@@ -28,7 +28,7 @@ final class CoreIntegrationService
     public function registerCapabilities(object $registry): bool
     {
         if (!$this->isCapabilityRegistryAvailable() || !$registry instanceof \xdecaro\Core\Integration\CapabilityRegistry) { return false; }
-        $caps=['finance.obligations','finance.payments','finance.deposits','finance.budgets','finance.accounts','finance.transactions','finance.transfers','finance.cashchecks','finance.orders','finance.statements','finance.reporting','finance.query','finance.analytics.provider','finance.notifications.bridge','finance.tasks.bridge'];
+        $caps=['finance.obligations','finance.payments','finance.deposits','finance.budgets','finance.costcenters','finance.accounts','finance.transactions','finance.transfers','finance.cashchecks','finance.orders','finance.statements','finance.reporting','finance.query','finance.analytics.provider','finance.notifications.bridge','finance.tasks.bridge'];
         foreach ($caps as $name) { $registry->register(new \xdecaro\Core\Integration\Capability(self::COMPONENT,$name,'1')); }
         return true;
     }

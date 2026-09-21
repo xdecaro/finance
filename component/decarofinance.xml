@@ -6,7 +6,7 @@
   <copyright>Copyright (C) 2026 Luca De Caro. All rights reserved.</copyright>
   <license>GNU General Public License version 2 or later</license>
   <authorUrl>https://github.com/xdecaro/finance</authorUrl>
-  <version>1.5.5</version>
+  <version>1.6.0</version>
   <description>COM_DECAROFINANCE_XML_DESCRIPTION</description>
   <namespace path="src">Xdecaro\Component\Decarofinance</namespace>
   <administration>
@@ -21,6 +21,7 @@
       <menu view="orders">COM_DECAROFINANCE_ORDERS</menu>
       <menu view="cashchecks">COM_DECAROFINANCE_CASH_CHECKS</menu>
       <menu view="deposits">COM_DECAROFINANCE_DEPOSITS</menu>
+      <menu view="costcenters">COM_DECAROFINANCE_COST_CENTERS</menu>
       <menu view="budgets">COM_DECAROFINANCE_BUDGETS</menu>
       <menu view="statements">COM_DECAROFINANCE_STATEMENTS</menu>
       <menu view="reports">COM_DECAROFINANCE_REPORTS</menu>

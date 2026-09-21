@@ -12,6 +12,9 @@ final class HtmlView extends BaseHtmlView
     public array $items=[];
     public array $accounts=[];
     public array $budgetLines=[];
+    public array $costCenters=[];
+    public array $organizations=[];
+    public array $people=[];
 
     public function display($tpl=null): void
     {
@@ -21,8 +24,9 @@ final class HtmlView extends BaseHtmlView
         \Xdecaro\Component\Decarofinance\Administrator\Helper\UiHelper::loadAssets();
         $component=$app->bootComponent('com_decarofinance');
         if (!$component instanceof \Xdecaro\Component\Decarofinance\Administrator\Extension\DecarofinanceComponent) { throw new \RuntimeException('Finance component is unavailable.'); }
-        $query=$component->getFinanceQueryService();
-        $this->items=$query->listTransactions(); $this->accounts=$query->listAccounts(); $this->budgetLines=$query->listBudgetLines();
+        $query=$component->getFinanceQueryService(); $references=$component->getReferenceLookupService();
+        $this->items=$query->listTransactions(); $this->accounts=$query->listAccounts(); $this->budgetLines=$query->listBudgetLines(); $this->costCenters=$query->listCostCenters();
+        $this->organizations=$references->listOrganizations(); $this->people=$references->listPeople();
         parent::display($tpl);
     }
 }
